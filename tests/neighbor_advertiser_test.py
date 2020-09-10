@@ -62,7 +62,7 @@ class TestNeighborAdvertiser(object):
         assert(neighbor_advertiser.check_existing_tunnel())
         neighbor_advertiser.add_vxlan_tunnel_map()
         tunnel_mapping = neighbor_advertiser.config_db.get_table('VXLAN_TUNNEL_MAP')
-        expected_mapping = {("vtep1", "map_1"): {"vni": "1000", "vlan": "Vlan1000"}, ("vtep1", "map_2"): {"vni": "2000", "vlan": "Vlan2000"}}
+        expected_mapping = {("vtep1", "map_1000_Vlan1000"): {"vni": "1000", "vlan": "Vlan1000"}, ("vtep1", "map_2000_Vlan2000"): {"vni": "2000", "vlan": "Vlan2000"}}
         for key in expected_mapping.keys():
             assert(key in tunnel_mapping.keys())
             assert(expected_mapping[key] == tunnel_mapping[key])
