@@ -45,7 +45,7 @@ MIRROR_ACL_RULE_NAME = 'rule_arp'
 MIRROR_ACL_RULEV6_NAME = 'rule_nd'
 VXLAN_TUNNEL_NAME = 'neigh_adv'
 VXLAN_TUNNEL_MAP_PREFIX = 'map_'
-
+VXLAN_EVPN_NVO_NAME = 'nvo'
 
 #
 # Path
@@ -512,6 +512,12 @@ def check_existing_tunnel():
         return True
     return False
 
+def add_vxlan_evpn_nvo():
+    nvo_info = {
+        'source_vtep': VXLAN_TUNNEL_NAME
+    }
+    config_db.set_entry('VXLAN_EVPN_NVO', VXLAN_EVPN_NVO_NAME, nvo_info)
+
 def add_vxlan_tunnel(dst_ipv4_addr):
     vxlan_tunnel_info = {
         'src_ip': get_loopback_addr(4),
@@ -534,12 +540,16 @@ def set_vxlan_tunnel(ferret_server_ip):
     if not check_existing_tunnel():
         add_vxlan_tunnel(ferret_server_ip)
     add_vxlan_tunnel_map()
+    add_vxlan_evpn_nvo()
     log.log_info('Finish setting vxlan tunnel; Ferret: {}'.format(ferret_server_ip))
 
 
 #
 # Reset vxlan tunnel
 #
+
+def remove_vxlan_evpn_nvo():
+    config_db.set_entry('VXLAN_EVPN_NVO', VXLAN_EVPN_NVO_NAME, None)
 
 def remove_vxlan_tunnel():
     config_db.set_entry('VXLAN_TUNNEL', VXLAN_TUNNEL_NAME, None)
@@ -557,6 +567,7 @@ def remove_vxlan_tunnel_map():
 def reset_vxlan_tunnel():
     remove_vxlan_tunnel_map()
     remove_vxlan_tunnel()
+    remove_vxlan_evpn_nvo()
     log.log_info('Finish resetting vxlan tunnel')
 
 
