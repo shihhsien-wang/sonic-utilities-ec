@@ -40,6 +40,7 @@ PORT_LANES_STATUS = "lanes"
 PORT_ALIAS = "alias"
 PORT_OPER_STATUS = "oper_status"
 PORT_ADMIN_STATUS = "admin_status"
+PORT_PARENT_ADMIN_STATUS = "parent_admin_status"
 PORT_SPEED = "speed"
 PORT_MTU_STATUS = "mtu"
 PORT_FEC = "fec"
@@ -389,12 +390,21 @@ def appl_db_sub_intf_status_get(appl_db, config_db, front_panel_ports_list, port
 
         full_intf_table_name = "INTF_TABLE" + ":" + sub_intf_name
 
+        if parent_port_name.startswith("Ethernet"):
+            full_port_table_name = "PORT_TABLE" + ":" + parent_port_name
+        else:
+            full_port_table_name = "LAG_TABLE" + ":" + parent_port_name
+
         if status_type == "vlan":
             vlan_id = appl_db.get(appl_db.APPL_DB, full_intf_table_name, status_type)
             return vlan_id
 
         if status_type == "admin_status":
             status = appl_db.get(appl_db.APPL_DB, full_intf_table_name, status_type)
+            return status if status is not None else "N/A"
+
+        if status_type == "parent_admin_status":
+            status = appl_db.get(appl_db.APPL_DB, full_port_table_name, PORT_ADMIN_STATUS)
             return status if status is not None else "N/A"
 
         if status_type == "type":
@@ -413,7 +423,7 @@ def appl_db_sub_intf_status_get(appl_db, config_db, front_panel_ports_list, port
 # ========================== interface-status logic ==========================
 
 header_stat = ['Interface', 'Lanes', 'Speed', 'MTU', 'FEC', 'Alias', 'Vlan', 'Oper', 'Admin', 'Type', 'Asym PFC']
-header_stat_sub_intf = ['Sub port interface', 'Speed', 'MTU', 'Vlan', 'Admin', 'Type']
+header_stat_sub_intf = ['Sub port interface', 'Speed', 'MTU', 'Vlan', 'Admin', 'Parent admin', 'Type']
 
 
 class IntfStatus(object):
@@ -511,6 +521,7 @@ class IntfStatus(object):
                                 appl_db_sub_intf_status_get(self.db, self.config_db, self.front_panel_ports_list, self.portchannel_speed_dict, sub_intf, PORT_MTU_STATUS),
                                 appl_db_sub_intf_status_get(self.db, self.config_db, self.front_panel_ports_list, self.portchannel_speed_dict, sub_intf, "vlan"),
                                 appl_db_sub_intf_status_get(self.db, self.config_db, self.front_panel_ports_list, self.portchannel_speed_dict, sub_intf, PORT_ADMIN_STATUS),
+                                appl_db_sub_intf_status_get(self.db, self.config_db, self.front_panel_ports_list, self.portchannel_speed_dict, sub_intf, PORT_PARENT_ADMIN_STATUS),
                                 appl_db_sub_intf_status_get(self.db, self.config_db, self.front_panel_ports_list, self.portchannel_speed_dict, sub_intf, PORT_OPTICS_TYPE)))
         return table
 

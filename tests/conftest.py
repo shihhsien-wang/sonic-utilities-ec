@@ -125,6 +125,9 @@ def setup_multi_broadcom_masic():
     multi_asic.get_num_asics = mock.MagicMock(return_value=1)
     multi_asic.is_multi_asic= mock.MagicMock(return_value=False)
 
+@pytest.fixture
+def setup_asic_type():
+    device_info.get_platform_info = mock.MagicMock(return_value={"asic_type": "broadcom"})
 
 @pytest.fixture
 def setup_single_bgp_instance_chassis(request):

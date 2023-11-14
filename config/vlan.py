@@ -6,12 +6,15 @@ from swsscommon.swsscommon import SonicV2Connector
 from jsonpatch import JsonPatchConflict
 from time import sleep
 from .utils import log
+from sonic_py_common import device_info
 from .validated_config_db_connector import ValidatedConfigDBConnector
 from . import stp
 
 ADHOC_VALIDATION = True
 DHCP_RELAY_TABLE = "DHCP_RELAY"
 DHCPV6_SERVERS = "dhcpv6_servers"
+
+VLAN_SUB_INTERFACE_SEPARATOR = '.'
 
 #
 # 'vlan' group ('config vlan ...')
@@ -57,6 +60,15 @@ def add_vlan(db, vid):
         # Enable STP on VLAN if PVST is enabled globally
         stp.vlan_enable_stp(db.cfgdb, vlan)
 
+        """subport vlan and normal vlan are mutually exclusive in broadcom asic"""
+        platform_info = device_info.get_platform_info()
+        if (platform_info and platform_info.get('asic_type') == 'broadcom'):
+            keys = db.cfgdb.get_keys('VLAN_SUB_INTERFACE')
+            for key in keys:
+                if isinstance(key, tuple) and key[0].split(VLAN_SUB_INTERFACE_SEPARATOR)[1] == str(vid):
+                    ctx.fail("{} already created by subport".format(vlan))
+                elif isinstance(key, str) and key.split(VLAN_SUB_INTERFACE_SEPARATOR)[1] == str(vid):
+                    ctx.fail("{} already created by subport".format(vlan))
     # set dhcpv4_relay table
     set_dhcp_relay_table('VLAN', config_db, vlan, {'vlanid': str(vid)})
 

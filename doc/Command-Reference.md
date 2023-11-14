@@ -6973,6 +6973,7 @@ The type of interfaces include the following.
   admin@sonic:~$ show ip interfaces
   Interface       Master          IPv4 address/mask     Admin/Oper      BGP Neighbor     Neighbor IP     Flags
   -------------   ------------    ------------------    --------------  -------------    -------------   -------
+  Ethernet8.10                    1.1.1.1/24            down/down       N/A              N/A
   Loopback0                       1.0.0.1/32            up/up           N/A              N/A
   Loopback11      Vrf-red         11.1.1.1/32           up/up           N/A              N/A
   Loopback100     Vrf-blue        100.0.0.1/32          up/up           N/A              N/A
@@ -6986,6 +6987,7 @@ The type of interfaces include the following.
   eth0                            10.3.147.252/23       up/up           N/A              N/A
   lo                              127.0.0.1/8           up/up           N/A              N/A
   ```
+  Note: The admin status of the IP interface on sub port will also consider the admin status of its parent interface.
 
 #### show ip protocol
 

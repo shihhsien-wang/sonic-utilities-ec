@@ -635,6 +635,16 @@ def _get_neighbor_ipaddress_list_by_hostname(config_db, hostname):
             addrs.append(addr)
     return addrs
 
+def interface_has_subport(config_db, interface_name):
+    """Get table keys including subport"""
+
+    data = []
+    keys = config_db.get_keys('VLAN_SUB_INTERFACE')
+    for key in keys:
+        if key[0].split(VLAN_SUB_INTERFACE_SEPARATOR)[0] == interface_name and len(key) == 2:
+            data.append(key)
+    return data
+
 def _change_bgp_session_status_by_addr(config_db, ipaddress, status, verbose):
     """Start up or shut down BGP session by IP address
     """
@@ -2186,6 +2196,10 @@ def remove_portchannel(ctx, portchannel_name):
         if is_portchannel_present_in_db(db, portchannel_name) is False:
             ctx.fail("{} is not present.".format(portchannel_name))
 
+        subport = interface_has_subport(db, portchannel_name)
+        if len(subport):
+            ctx.fail("{} contains a subport interface. Remove subport interface first".format(portchannel_name))
+
         # Dont let to remove port channel if vlan membership exists
         for k,v in db.get_table('VLAN_MEMBER'): # TODO: MISSING CONSTRAINT IN YANG MODEL
             if v == portchannel_name:
@@ -2217,7 +2231,7 @@ def add_portchannel_member(ctx, portchannel_name, port_name):
             ctx.fail("{} is configured as mirror destination port".format(port_name)) # TODO: MISSING CONSTRAINT IN YANG MODEL
 
         # Check if the member interface given by user is valid in the namespace.
-        if port_name.startswith("Ethernet") is False or interface_name_is_valid(db, port_name) is False:
+        if port_name.startswith("Ethernet") is False or interface_name_is_valid(db, port_name) is False or VLAN_SUB_INTERFACE_SEPARATOR in port_name:
             ctx.fail("Interface name is invalid. Please enter a valid interface name!!")
 
         # Dont proceed if the port channel name is not valid
@@ -2291,6 +2305,10 @@ def add_portchannel_member(ctx, portchannel_name, port_name):
             port_tpid = port_entry.get(PORT_TPID) # TODO: MISSING CONSTRAINT IN YANG MODEL
             if port_tpid != DEFAULT_TPID:
                 ctx.fail("Port TPID of {}: {} is not at default 0x8100".format(port_name, port_tpid))
+
+        subport = interface_has_subport(db, port_name)
+        if len(subport):
+            ctx.fail("{} is a subport interface".format(subport[0][0]))
 
         # Don't allow a port to be a member of portchannel if already has ACL bindings
         try:
@@ -4834,6 +4852,15 @@ def add(ctx, interface_name, ip_addr, gw):
         if interface_name is None:
             ctx.fail("'interface_name' is None!")
 
+    if interface_name.find(VLAN_SUB_INTERFACE_SEPARATOR) != -1:
+        if len(interface_name) > 15:
+            ctx.fail("Sub port interface name is too long!")
+
+        parent_interface = interface_name.split(VLAN_SUB_INTERFACE_SEPARATOR)[0]
+        if interface_name_is_valid(config_db, get_intf_longname(parent_interface)) is False:
+            ctx.fail("Interface name is invalid. Please enter a valid interface name!!")
+
+
     # Add a validation to check this interface is not a member in vlan before
     # changing it to a router port
     vlan_member_table = config_db.get_table('VLAN_MEMBER')
@@ -4881,6 +4908,32 @@ def add(ctx, interface_name, ip_addr, gw):
         ctx.fail("'interface_name' is not valid. Valid names [Ethernet/PortChannel/Vlan/Loopback]")
     if is_ipaddress_overlapped(interface_name, str(ip_address)):
         ctx.fail("IP address {} overlaps with existing subnet".format(str(ip_address)))
+
+    if table_name == "VLAN_SUB_INTERFACE":
+        parentAlias = interface_name.split(VLAN_SUB_INTERFACE_SEPARATOR)[0]
+        keys = config_db.get_keys(get_interface_table_name(parentAlias))
+        for key in keys:
+            if parentAlias == key:
+                ctx.fail("{} is a L3 interface!".format(parentAlias))
+        vid = interface_name.split(VLAN_SUB_INTERFACE_SEPARATOR)[1]
+        if not vid.isdigit() or clicommon.is_vlanid_in_range(int(vid)) is False:
+            ctx.fail("Invalid VLAN ID {} (1-4094)".format(vid))
+
+        """subport vlan and normal vlan are mutually exclusive in broadcom asic"""
+        platform_info = device_info.get_platform_info()
+        if (platform_info and platform_info.get('asic_type') == 'broadcom'):
+            vlan_name = 'Vlan{}'.format(vid)
+            if len(config_db.get_entry('VLAN', vlan_name)) != 0:
+                ctx.fail("{} already exist".format(vlan_name))
+
+        portchannel_member_table = config_db.get_table('PORTCHANNEL_MEMBER')
+        if interface_is_in_portchannel(portchannel_member_table, parentAlias):
+            ctx.fail("{} is portchannel member".format(parentAlias))
+    else:
+        subport = interface_has_subport(config_db, interface_name)
+        if len(subport):
+            ctx.fail("{} is a subport interface!".format(subport[0][0]))
+
     interface_entry = config_db.get_entry(table_name, interface_name)
     if len(interface_entry) == 0:
         if table_name == "VLAN_SUB_INTERFACE":
@@ -4940,8 +4993,7 @@ def remove(ctx, interface_name, ip_addr):
     remove_router_interface_ip_address(config_db, interface_name, ip_address)
     interface_addresses = get_interface_ipaddresses(config_db, interface_name)
     if len(interface_addresses) == 0 and is_interface_bind_to_vrf(config_db, interface_name) is False and get_intf_ipv6_link_local_mode(ctx, interface_name, table_name) != "enable":
-        if table_name != "VLAN_SUB_INTERFACE":
-            config_db.set_entry(table_name, interface_name, None)
+        config_db.set_entry(table_name, interface_name, None)
 
     if multi_asic.is_multi_asic():
         command = ['sudo', 'ip', 'netns', 'exec', str(ctx.obj['namespace']), 'ip', 'neigh', 'flush', 'dev', str(interface_name), str(ip_address)]
@@ -5649,6 +5701,14 @@ def bind(ctx, interface_name, vrf_name):
         interface_name = interface_alias_to_name(config_db, interface_name)
         if interface_name is None:
             ctx.fail("'interface_name' is None!")
+
+    if interface_name.find(VLAN_SUB_INTERFACE_SEPARATOR) != -1:
+        if len(interface_name) > 15:
+            ctx.fail("Sub port interface name is too long!")
+
+        parent_interface = interface_name.split(VLAN_SUB_INTERFACE_SEPARATOR)[0]
+        if interface_name_is_valid(config_db, get_intf_longname(parent_interface)) is False:
+            ctx.fail("Interface name is invalid. Please enter a valid interface name!!")
 
     if not is_vrf_exists(config_db, vrf_name):
         ctx.fail("VRF %s does not exist!"%(vrf_name))
@@ -7355,11 +7415,13 @@ def add_subinterface(ctx, subinterface_name, vid):
             ctx.fail("{} is configured as a member of portchannel. Cannot configure subinterface"
                     .format(parent_intf))
 
-        # Validate if parent is vlan member
-        vlan_member_table = config_db.get_table('VLAN_MEMBER')
-        if interface_is_in_vlan(vlan_member_table, parent_intf): # TODO: MISSING CONSTRAINT IN YANG MODEL
-            ctx.fail("{} is configured as a member of vlan. Cannot configure subinterface"
-                    .format(parent_intf))
+        """subport vlan and normal vlan are mutually exclusive in broadcom asic"""
+        platform_info = device_info.get_platform_info()
+        if (platform_info and platform_info.get('asic_type') == 'broadcom'):
+            vlan_table = config_db.get_table('VLAN')
+            vlan = "Vlan{}".format(subinterface_name.split(VLAN_SUB_INTERFACE_SEPARATOR)[1])
+            if vlan in vlan_table:
+                ctx.fail("{} is configured as vlan. Cannot configure subinterface".format(vlan))
 
         sub_intfs = [k for k,v in config_db.get_table('VLAN_SUB_INTERFACE').items() if type(k) != tuple]
         if subinterface_name in sub_intfs:

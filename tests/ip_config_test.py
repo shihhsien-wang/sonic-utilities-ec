@@ -56,6 +56,7 @@ class TestConfigIP(object):
         assert ('Ethernet64', '10.10.10.1/24') in db.cfgdb.get_table('INTERFACE')
 
         # config int ip add Ethernet0.10 10.11.10.1/24
+        runner.invoke(config.config.commands["interface"].commands["ip"].commands["remove"], ["Ethernet0", "14.14.0.1/24"], obj=obj)
         result = runner.invoke(config.config.commands["interface"].commands["ip"].commands["add"], ["Ethernet0.10", "10.11.10.1/24"], obj=obj)
         print(result.exit_code, result.output)
         assert result.exit_code == 0
@@ -144,6 +145,7 @@ class TestConfigIP(object):
         assert result.exit_code == 0
         assert ('Ethernet72', '2001:1db8:11a3:19d7:1f34:8a2e:17a0:765d/34') in db.cfgdb.get_table('INTERFACE')
 
+        runner.invoke(config.config.commands["interface"].commands["ip"].commands["remove"], ["Ethernet0", "14.14.0.1/24"], obj=obj)
         result = runner.invoke(config.config.commands["interface"].commands["ip"].commands["add"], ["Ethernet0.10", "1010:1db8:11a3:19d7:1f34:8a2e:17a0:765d/34"], obj=obj)
         print(result.exit_code, result.output)
         assert result.exit_code == 0
