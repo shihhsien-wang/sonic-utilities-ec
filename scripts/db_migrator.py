@@ -972,6 +972,15 @@ class DBMigrator():
         This is the latest version for 202012 branch
         """
         log.log_info('Handling version_2_0_2')
+        self.set_version('version_2_0_4')
+        return 'version_2_0_4'
+
+    def version_2_0_4(self):
+        """
+        Version 2_0_4
+        This is the latest version for 202111 branch
+        """
+        log.log_info('Handling version_2_0_4')
         self.set_version('version_3_0_0')
         return 'version_3_0_0'
 
