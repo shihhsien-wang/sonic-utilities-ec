@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import subprocess
 import click
@@ -15,6 +16,7 @@ import sonic_platform_base.sonic_sfp.sfputilhelper
 
 from . import portchannel
 from collections import OrderedDict
+from natsort import natsorted
 
 HWSKU_JSON = 'hwsku.json'
 
@@ -917,6 +919,39 @@ def scheduler(db, interface_name):
 
         click.echo(port_name)
         click.echo(tabulate(body, header, stralign='left') + '\n')
+
+
+# 'mtu' subcommand ("show interfaces mtu")
+@interfaces.command(name='mtu')
+@clicommon.pass_db
+def mtu(db):
+    """Show interface mtu and mtu_slowpath"""
+
+    config_db = db.cfgdb
+    appl_db = db.appldb
+    ctx = click.get_current_context()
+
+    header = ['Interface', 'MTU', 'Slowpath MTU']
+    table = []
+    appl_db_keys = appl_db.keys(appl_db.APPL_DB, "PORT_TABLE:*")
+    ports_dict = config_db.get_table('PORT')
+    for i in natsorted(appl_db_keys):
+        key = re.split(':', i, maxsplit=1)[-1].strip()
+        if key in ports_dict:
+            # 'mtu' attribute in appl_db
+            mtu = appl_db.get(appl_db.APPL_DB, "PORT_TABLE:" + key, "mtu")
+            if mtu is None:
+                mtu = "N/A"
+
+            # 'mtu_slowpath' attribute in config_db
+            mtu_slowpath = config_db.get(config_db.CONFIG_DB, "PORT|" + key, "mtu_slowpath")
+            if mtu_slowpath is None:
+                mtu_slowpath = "Not Configured"
+
+            table.append((key, mtu,mtu_slowpath))
+
+    click.echo(tabulate(table, header, tablefmt="simple",stralign='right'))
+
 
 from . import buffer as buffer_command
 from . import qos as qos_command

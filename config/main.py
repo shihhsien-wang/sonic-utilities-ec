@@ -106,6 +106,7 @@ CFG_PORTCHANNEL_MAX_VAL = 9999
 CFG_PORTCHANNEL_NO="<0-9999>"
 
 PORT_MTU = "mtu"
+PORT_MTU_SLOWPATH = "mtu_slowpath"
 PORT_SPEED = "speed"
 PORT_TPID = "tpid"
 DEFAULT_TPID = "0x8100"
@@ -2284,19 +2285,24 @@ def add_portchannel_member(ctx, portchannel_name, port_name):
                         ctx.fail("Port speed of {} is different than the other members of the portchannel {}"
                                  .format(port_name, portchannel_name))
 
-        # Dont allow a port to be member of port channel if its MTU does not match with portchannel
+        # Dont allow a port to be member of port channel if its MTU/'Slowpath MTU' does not match with portchannel
         portchannel_entry =  db.get_entry('PORTCHANNEL', portchannel_name)
         if portchannel_entry and portchannel_entry.get(PORT_MTU) is not None :
             port_entry = db.get_entry('PORT', port_name)
+            portchannel_mtu = portchannel_entry.get(PORT_MTU) # TODO: MISSING CONSTRAINT IN YANG MODEL
 
             if port_entry and port_entry.get(PORT_MTU) is not None:
                 port_mtu = port_entry.get(PORT_MTU)
 
-                portchannel_mtu = portchannel_entry.get(PORT_MTU) # TODO: MISSING CONSTRAINT IN YANG MODEL
                 if portchannel_mtu != port_mtu:
                     ctx.fail("Port MTU of {} is different than the {} MTU size"
                              .format(port_name, portchannel_name))
 
+            if port_entry and port_entry.get(PORT_MTU_SLOWPATH) is not None:
+                port_mtu_slowpath = port_entry.get(PORT_MTU_SLOWPATH)
+                if portchannel_mtu != port_mtu_slowpath:
+                    ctx.fail("Port slowpath MTU of {} is different than the {} MTU size"
+                            .format(port_name, portchannel_name))
         # Dont allow a port to be member of port channel if its TPID is not at default 0x8100
         # If TPID is supported at LAG level, when member is added, the LAG's TPID is applied to the
         # new member by SAI.
@@ -4762,6 +4768,16 @@ def mtu(ctx, interface_name, interface_mtu, verbose):
     if interface_is_in_portchannel(portchannel_member_table, interface_name):
         ctx.fail("'interface_name' is in portchannel!")
 
+    # check mtu >= mtu_slowpath
+    port_info = config_db.get_entry('PORT', interface_name)
+
+    if len(port_info) > 0:
+        mtu_slowpath = port_info.get('mtu_slowpath', None)
+        if mtu_slowpath is not None and mtu_slowpath.isdigit():
+            if int(interface_mtu) < int(mtu_slowpath):
+                ctx.fail("Interface mtu: {} should be greater than or equal to slowpath mtu: {}".format(interface_mtu, mtu_slowpath))
+
+
     if ctx.obj['namespace'] is DEFAULT_NAMESPACE:
         command = ['portconfig', '-p', str(interface_name), '-m', str(interface_mtu)]
     else:
@@ -4770,6 +4786,44 @@ def mtu(ctx, interface_name, interface_mtu, verbose):
     if verbose:
         command += ["-vv"]
     clicommon.run_command(command, display_cmd=verbose)
+
+
+#
+# 'mtu-slowpath' subcommand
+#
+
+@interface.command()
+@click.pass_context
+@click.argument('interface_name', metavar='<interface_name>', required=True)
+@click.argument('mtu_slowpath', metavar='<mtu_slowpath>', type=click.IntRange(68, 9216), required=True)
+def mtu_slowpath(ctx, interface_name, mtu_slowpath):
+    """Set interface mtu_slowpath"""
+
+    # Get the config_db connector
+    config_db = ctx.obj['config_db']
+    if clicommon.get_interface_naming_mode() == "alias":
+        interface_name = interface_alias_to_name(config_db, interface_name)
+        if interface_name is None:
+            ctx.fail("'interface_name' is None!")
+
+    portchannel_member_table = config_db.get_table('PORTCHANNEL_MEMBER')
+    if interface_is_in_portchannel(portchannel_member_table, interface_name):
+        ctx.fail("{} is in portchannel!".format(interface_name))
+
+    # check whether this port exists
+    port_info = config_db.get_entry('PORT', interface_name);
+
+    if len(port_info) == 0:
+        ctx.fail("Invalid port {}".format(interface_name))
+
+    # check mtu >= mtu_slowpath
+    mtu = port_info.get('mtu', None)
+    if mtu is not None and mtu.isdigit():
+        if int(mtu_slowpath) > int(mtu):
+            ctx.fail("mtu_slowpath {} should not exceed the interface mtu {}".format(mtu_slowpath, mtu))
+
+    config_db.mod_entry("PORT", interface_name, {"mtu_slowpath": mtu_slowpath})
+
 
 #
 # 'tpid' subcommand

@@ -443,6 +443,51 @@ class TestPortChannel(object):
         assert result.exit_code == 0
         assert result.output == ""
 
+
+    def test_add_portchannel_member_which_has_different_mtu_and_mtu_slowpath(self):
+        runner = CliRunner()
+        db = Db()
+        obj = {'db':db.cfgdb, 'db_wrap':db, 'namespace':''}
+        port = "Ethernet48"
+
+        # add portchannel member
+        result = runner.invoke(config.config.commands["portchannel"].commands["member"].commands["add"], ["PortChannel1001", port], obj=obj)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+
+        # del portchannel member
+        result = runner.invoke(config.config.commands["portchannel"].commands["member"].commands["del"], ["PortChannel1001", port], obj=obj)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+
+        # modify port mtu to 1500 in config_db directly
+        db.cfgdb.mod_entry("PORT", port, {'mtu' : '1500'})
+
+        # add portchannel member should fail if port mtu != portchannel mtu
+        result = runner.invoke(config.config.commands["portchannel"].commands["member"].commands["add"], ["PortChannel1001", port], obj=obj)
+        err_msg = "Error: Port MTU of {} is different than the PortChannel1001 MTU size".format(port)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code != 0
+        assert err_msg in result.output
+
+        # reset port mtu to 9100 in config_db directly
+        db.cfgdb.mod_entry("PORT", port, {'mtu' : '9100'})
+
+        # modify port mtu_slowpath to 1500 in config_db directly
+        db.cfgdb.mod_entry("PORT", port, {'mtu_slowpath' : '1500'})
+
+        # add portchannel member should fail if port mtu_slowpath != portchannel mtu
+        result = runner.invoke(config.config.commands["portchannel"].commands["member"].commands["add"], ["PortChannel1001", port], obj=obj)
+        err_msg = "Error: Port slowpath MTU of {} is different than the PortChannel1001 MTU size".format(port)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code != 0
+        assert err_msg in result.output
+
+
     @classmethod
     def teardown_class(cls):
         os.environ['UTILITIES_UNIT_TESTING'] = "0"

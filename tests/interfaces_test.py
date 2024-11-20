@@ -6,6 +6,8 @@ from unittest import mock
 from utilities_common.intf_filter import parse_interface_in_filter
 
 import show.main as show
+import config.main as config
+from utilities_common.db import Db
 
 show_interfaces_alias_output="""\
 Name         Alias
@@ -295,6 +297,32 @@ class TestInterfaces(object):
         assert result.exit_code == 0
         assert result.output == show_interfaces_portchannel_in_alias_mode_output
        
+
+    def test_config_interfaces_mtu_slowpath(self):
+        runner = CliRunner()
+        db = Db()
+        obj = {'db':db.cfgdb, 'config_db': db.cfgdb, 'namespace': ''}
+
+        port = "Ethernet40"
+
+        # port mtu_slowpath == port mtu
+        result = runner.invoke(config.config.commands["interface"].commands["mtu-slowpath"], [port, "9100"], obj=obj)
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+
+        # modify port mtu to 1500 in config_db directly
+        db.cfgdb.mod_entry("PORT", port, {'mtu' : '1500'})
+
+        # port mtu_slowpath > port mtu
+        result = runner.invoke(config.config.commands["interface"].commands["mtu-slowpath"], [port, "1600"], obj=obj)
+        err_msg = "Error: mtu_slowpath 1600 should not exceed the interface mtu 1500"
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code != 0
+        assert err_msg in result.output
+
+
     @mock.patch('sonic_py_common.multi_asic.get_port_table', mock.MagicMock(return_value={}))
     def test_supervisor_show_interfaces_alias_etp1_with_waring(self):
         runner = CliRunner()
