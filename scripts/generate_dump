@@ -1269,7 +1269,7 @@ collect_mellanox_dfw_dumps() {
     local sdk_dump_path=`cat /usr/share/sonic/device/${platform}/${hwsku}/sai.profile|grep "SAI_DUMP_STORE_PATH"|cut -d = -f2`
 
     if [[ ! -d $sdk_dump_path ]]; then
-       # This would mean the SAI_DUMP_STORE_PATH is not mounted on the host and is only accessible though the container 
+       # This would mean the SAI_DUMP_STORE_PATH is not mounted on the host and is only accessible though the container
        # This is a bad design and not recommended But there is nothing which restricts against it and thus the special handling
        if [[ "$( docker container inspect -f '{{.State.Running}}' syncd )" == "true" ]]; then
             $RM $V -rf /tmp/dfw-sdk-dumps
@@ -1452,6 +1452,9 @@ collect_broadcom() {
         save_bcmcmd_all_ns "-t5 soc" "broadcom.soc"
         save_bcmcmd_all_ns "\"l3 ecmp egress show\"" "l3.ecmp.egress.summary"
         save_bcmcmd_all_ns "\"d chg my_station_tcam\"" "mystation.tcam.summary"
+        if [ "${BCM_DEVICE_ID}" != "b980" ]; then
+            save_bcmcmd_all_ns "\"d chg my_station_tcam_2\"" "mystation.tcam2.summary"
+        fi
 
         if [[ "${BCM_DEVICE_ID}" != "b980" && "${BCM_DEVICE_ID}" != "b370" && "${BCM_DEVICE_ID}" != "b371" && "${BCM_DEVICE_ID}" != "b277" ]]; then
             save_bcmcmd_all_ns "\"l3 nat_ingress show\"" "broadcom.nat.ingress"
@@ -1522,8 +1525,23 @@ collect_broadcom() {
        save_bcmcmd_all_ns "\"pvlan show\"" "pvlan.summary"
        save_bcmcmd_all_ns "\"l2 show\"" "l2.summary"
        save_bcmcmd_all_ns "\"l3 intf show\"" "l3.intf.summary"
-       save_bcmcmd_all_ns "\"l3 defip show\"" "l3.defip.summary"
-       save_bcmcmd_all_ns "\"l3 l3table show\"" "l3.l3table.summary"
+
+
+       if [ "${BCM_DEVICE_ID}" == "f900" ] || [ "${BCM_DEVICE_ID}" == "b990" ] || [ "${BCM_DEVICE_ID}" == "b880" ] || [ "${BCM_DEVICE_ID}" == "b993" ]; then
+            save_bcmcmd_all_ns "\"l2 station show\"" "l2.station.summary"
+            save_bcmcmd_all_ns "\"l3 route show\"" "l3.route.summary"
+            save_bcmcmd_all_ns "\"l3 host show\"" "l3.host.summary"
+            save_bcmcmd_all_ns "\"l3 host show v6=true\"" "l3.ip6host.summary"
+            save_bcmcmd_all_ns "\"l3 route show v6=true\"" "l3.ip6route.summary"
+            save_bcmcmd_all_ns "\"l3 ecmp show\"" "l3.ecmp.summary"
+       else
+            save_bcmcmd_all_ns "\"l3 defip show\"" "l3.defip.summary"
+            save_bcmcmd_all_ns "\"l3 l3table show\"" "l3.l3table.summary"
+            save_bcmcmd_all_ns "\"l3 ip6host show\"" "l3.ip6host.summary"
+            save_bcmcmd_all_ns "\"l3 ip6route show\"" "l3.ip6route.summary"
+            save_bcmcmd_all_ns "\"l3 multipath show\"" "l3.multipath.summary"
+       fi
+
        save_bcmcmd_all_ns "\"l3 egress show\"" "l3.egress.summary"
        save_bcmcmd_all_ns "\"l3 multipath show\"" "l3.multipath.summary"
        save_bcmcmd_all_ns "\"l3 ip6host show\"" "l3.ip6host.summary"
@@ -1562,7 +1580,7 @@ collect_barefoot() {
     for file in $(find /tmp/bf_logs -type f); do
         save_file "${file}" log true
     done
-} 
+}
 
 ###############################################################################
 # Collect Cisco-8000 specific information
@@ -2083,7 +2101,7 @@ main() {
 
     save_to_tar
 
-    save_sai_failure_dump 
+    save_sai_failure_dump
 
     if [[ "$asic" = "mellanox" ]]; then
         collect_mellanox_dfw_dumps
