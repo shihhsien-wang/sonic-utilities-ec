@@ -6579,7 +6579,7 @@ This command displays the IP address(es) configured for the management interface
 
 - Usage:
   ```
-  show management_interface address
+  show management_interface address [running]
   ```
 
 - Example:
@@ -6590,6 +6590,10 @@ This command displays the IP address(es) configured for the management interface
     Management IP address = FC00:2::32/64
     Management Network Default Gateway = fc00:2::1
   ```
+
+Use [running] sub command to show ip and default gateway which apply into in linux kernel.   
+This is for verification purpose to check if setting take effect or not.
+
 
 **show snmpagentaddress**
 

@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import re
+import ipaddress
 
 import click
 import lazy_object_proxy
@@ -106,6 +107,42 @@ def readJsonFile(fileName):
     except Exception as e:
         click.echo(str(e))
         raise click.Abort()
+    return result
+
+def get_default_gateway(ipv6=False):
+    """get default gateway"""
+    table = 'default'
+    if _is_mgmt_vrf_enabled():
+        table = 5000
+
+    ip_type = '-4'
+    if ipv6:
+        ip_type = '-6'
+
+    cmd = 'ip {} route show table {} | grep default'.format(ip_type, table)
+
+    p = subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try :
+        raw_string = p.stdout.read()
+        m = re.match( r"^default via ([\d.]*|[0-9a-fA-F:]*) dev (\S*).*$", raw_string)
+        nexthop = ''
+        dev = ''
+        if m:
+            nexthop = m.group(1)
+            dev = m.group(2)
+        default_route = {'nexthop': nexthop, 'dev': dev}
+        return default_route
+    except ValueError:
+        print("default route is not present.")
+        return ''
+
+def get_interface_ip(interface, ipv6=False):
+    ip_type='-4'
+    if ipv6:
+        ip_type = '-6'
+
+    cmd = "ip {} -br address show {}  | awk '{{print $3}}'".format(ip_type, interface)
+    _, result, _ = run_system_command(cmd, remove_tail_newline=True)
     return result
 
 def run_command(command, display_cmd=False, return_cmd=False, shell=False):
@@ -430,24 +467,36 @@ def ndp(ip6address, iface, verbose):
 
     run_command(cmd, display_cmd=verbose)
 
+def _is_mgmt_vrf_enabled():
+    cmd = 'sonic-cfggen -d --var-json "MGMT_VRF_CONFIG"'
+
+    p = subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try :
+        mvrf_dict = json.loads(p.stdout.read())
+    except ValueError:
+        return False
+
+    # if the mgmtVrfEnabled attribute is configured, check the value
+    # and return True accordingly.
+    if 'mgmtVrfEnabled' in mvrf_dict['vrf_global']:
+        if (mvrf_dict['vrf_global']['mgmtVrfEnabled'] == "true"):
+            #ManagementVRF is enabled. Return True.
+            return True
+    return False
+
 def is_mgmt_vrf_enabled(ctx):
     """Check if management VRF is enabled"""
     if ctx.invoked_subcommand is None:
-        cmd = ['sonic-cfggen', '-d', '--var-json', "MGMT_VRF_CONFIG"]
+         return _is_mgmt_vrf_enabled()
 
-        p = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        try :
-            mvrf_dict = json.loads(p.stdout.read())
-        except ValueError:
-            print("MGMT_VRF_CONFIG is not present.")
-            return False
+    return False
 
-        # if the mgmtVrfEnabled attribute is configured, check the value
-        # and return True accordingly.
-        if 'mgmtVrfEnabled' in mvrf_dict['vrf_global']:
-            if (mvrf_dict['vrf_global']['mgmtVrfEnabled'] == "true"):
-                #ManagementVRF is enabled. Return True.
-                return True
+def is_in_band_mgmt_vrf_enabled(ctx):
+    """Check if in_band management VRF is enabled"""
+    if ctx.invoked_subcommand is None:
+        entry = ctx.obj.cfgdb.get_entry('MGMT_VRF_CONFIG','vrf_global')
+        if entry and entry.get('in_band_mgmt_enabled') == 'true' :
+            return True
 
     return False
 
@@ -526,20 +575,34 @@ def management_interface():
 
 # 'address' subcommand ("show management_interface address")
 @management_interface.command()
-def address ():
+@click.argument('running', required=False, type=click.Choice(["running"]))
+def address(running):
     """Show IP address configured for management interface"""
 
     config_db = ConfigDBConnector()
     config_db.connect()
 
-    # Fetching data from config_db for MGMT_INTERFACE
-    mgmt_ip_data = config_db.get_table('MGMT_INTERFACE')
-    for key in natsorted(list(mgmt_ip_data.keys())):
-        click.echo("Management IP address = {0}".format(key[1]))
-        if mgmt_ip_data[key].get('gwaddr') is not None:
-            click.echo("Management Network Default Gateway = {0}".format(mgmt_ip_data[key]['gwaddr']))
-        else:
-            click.echo("Management Network Default Gateway = ")
+    if running is None:
+        # Fetching data from config_db for MGMT_INTERFACE
+        mgmt_ip_data = config_db.get_table('MGMT_INTERFACE')
+        for key in natsorted(list(mgmt_ip_data.keys())):
+            click.echo("Management IP address = {0}".format(key[1]))
+            if mgmt_ip_data[key].get('gwaddr') is not None:
+                click.echo("Management Network Default Gateway = {0}".format(mgmt_ip_data[key]['gwaddr']))
+            else:
+                click.echo("Management Network Default Gateway = ")
+    else:
+        """ getting kernel runtime """
+        mgmt_ip_data = config_db.get_table('MGMT_INTERFACE')
+        for key in natsorted(list(mgmt_ip_data.keys())):
+            addr = key[1]
+            kernel_eth0_ip=''
+            is_ipv6 = True if ipaddress.ip_interface(addr).version == 6 else False
+            kernel_eth0_ip = get_interface_ip('eth0', ipv6=is_ipv6)
+            click.echo("Management IP address = {0}".format(kernel_eth0_ip))
+            default_gateway = get_default_gateway(ipv6=is_ipv6)
+            click.echo("Management Network Default Gateway = {0}".format(default_gateway['nexthop']))
+
 
 #
 # 'snmpagentaddress' group ("show snmpagentaddress ...")
