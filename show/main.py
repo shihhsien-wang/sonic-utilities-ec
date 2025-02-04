@@ -4,6 +4,7 @@ import subprocess
 import sys
 import re
 import ipaddress
+import shlex
 
 import click
 import lazy_object_proxy
@@ -109,41 +110,47 @@ def readJsonFile(fileName):
         raise click.Abort()
     return result
 
+def run_system_command(command, shell=True, display_cmd=False, remove_tail_newline=False):
+    if display_cmd:
+        click.echo(click.style("Command: ", fg='cyan') + click.style(command, fg='green'))
+
+    try:
+        result = subprocess.run(command, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout = result.stdout.rstrip("\n") if remove_tail_newline else result.stdout
+        stderr = result.stderr.rstrip("\n") if remove_tail_newline else result.stderr
+        return result.returncode, stdout, stderr
+    except Exception as e:
+        click.echo(f"Error executing command: {e}", err=True)
+        raise click.Abort()
+
 def get_default_gateway(ipv6=False):
     """get default gateway"""
-    table = 'default'
-    if _is_mgmt_vrf_enabled():
-        table = 5000
+    table = '5000' if _is_mgmt_vrf_enabled() else 'default'
+    ip_type = '-6' if ipv6 else '-4'
+    cmd = f'ip {ip_type} route show table {table} | grep default'
 
-    ip_type = '-4'
-    if ipv6:
-        ip_type = '-6'
-
-    cmd = 'ip {} route show table {} | grep default'.format(ip_type, table)
-
-    p = subprocess.Popen(cmd, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    default_route = {'nexthop': '', 'dev': ''}
     try :
-        raw_string = p.stdout.read()
-        m = re.match( r"^default via ([\d.]*|[0-9a-fA-F:]*) dev (\S*).*$", raw_string)
-        nexthop = ''
-        dev = ''
-        if m:
-            nexthop = m.group(1)
-            dev = m.group(2)
-        default_route = {'nexthop': nexthop, 'dev': dev}
+        returncode, stdout, _ = run_system_command(cmd)
+        if returncode != 0 or not stdout:
+            return default_route
+
+        match = re.match(r"^default via ([\d.]*|[0-9a-fA-F:]*) dev (\S+).*$", stdout)
+        if match:
+            default_route['nexthop'] = match.group(1)
+            default_route['dev'] = match.group(2)
         return default_route
-    except ValueError:
-        print("default route is not present.")
-        return ''
+    except Exception as e:
+        click.echo(f"Unexpected error: {e}", err=True)
+        return default_route
 
 def get_interface_ip(interface, ipv6=False):
-    ip_type='-4'
-    if ipv6:
-        ip_type = '-6'
+    """Get interface IP"""
+    ip_type = '-6' if ipv6 else '-4'
+    cmd = f"ip {ip_type} -br address show {shlex.quote(interface)} | awk '{{print $3}}'"
 
-    cmd = "ip {} -br address show {}  | awk '{{print $3}}'".format(ip_type, interface)
-    _, result, _ = run_system_command(cmd, remove_tail_newline=True)
-    return result
+    returncode, stdout, _ = run_system_command(cmd, remove_tail_newline=True)
+    return stdout if returncode == 0 and stdout else ""
 
 def run_command(command, display_cmd=False, return_cmd=False, shell=False):
     if not shell:
@@ -595,14 +602,13 @@ def address(running):
         """ getting kernel runtime """
         mgmt_ip_data = config_db.get_table('MGMT_INTERFACE')
         for key in natsorted(list(mgmt_ip_data.keys())):
-            addr = key[1]
-            kernel_eth0_ip=''
-            is_ipv6 = True if ipaddress.ip_interface(addr).version == 6 else False
-            kernel_eth0_ip = get_interface_ip('eth0', ipv6=is_ipv6)
-            click.echo("Management IP address = {0}".format(kernel_eth0_ip))
-            default_gateway = get_default_gateway(ipv6=is_ipv6)
-            click.echo("Management Network Default Gateway = {0}".format(default_gateway['nexthop']))
+            mgmt_intf, addr = key[0], key[1]
+            is_ipv6 = ipaddress.ip_interface(addr).version == 6
 
+            kernel_mgmt_ip = get_interface_ip(mgmt_intf, ipv6=is_ipv6)
+            click.echo("Management IP address = {0}".format(kernel_mgmt_ip))
+            default_gateway = get_default_gateway(ipv6=is_ipv6)
+            click.echo("Management Network Default Gateway = {0}".format(default_gateway.get('nexthop', '')))
 
 #
 # 'snmpagentaddress' group ("show snmpagentaddress ...")
