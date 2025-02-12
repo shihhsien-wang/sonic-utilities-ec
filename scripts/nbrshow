@@ -224,20 +224,40 @@ class NeighShow(NbrBase):
             self.display_err()
             return
 
+        valid_states = [
+                'PERMANENT', 'NOARP', 'REACHABLE', 'STALE', 'NONE',
+                        'INCOMPLETE', 'DELAY', 'PROBE', 'FAILED'
+        ]
+
         for line in self.arpraw.splitlines()[:]:
             split = line.split()
             if 'lladdr' not in split:
                 continue
 
-            ent = split[::2]
+            ent = []
+            try:
+                ip_index = split.index("dev") - 1
+                dev_index = split.index("dev") + 1
+                mac_index = split.index("lladdr") + 1
+            except ValueError:
+                continue
 
-            if 'router' not in split:
-                ent.append(split[-1])
+            ent.append(split[ip_index])
+            ent.append(split[mac_index])
+            ent.append(split[dev_index])
+
+
+            state = '-'
+            for s in valid_states:
+                if s in split:
+                    state = s
+                    break
+
+            ent.append(state)
+
 
             if self.iface is not None:
                 ent.insert(2, self.iface)
-            else:
-                ent[1], ent[2] = ent[2], ent[1]
 
             self.nbrdata.append(ent)
 
