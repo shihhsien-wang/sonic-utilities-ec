@@ -11066,14 +11066,14 @@ This command displays all the VRF VNI mappings.
   Total count : 1
   ```
 
-**show vxlan remote_mac <remoteip/all>**
+**show vxlan remotemac <remoteip/all>**
 
 This command displays all MACs learnt from a specified remote VTEP IP, or from all of the remote VTEP IPs for all VNIs.
 
 - Usage:
 
   ```
-  show vxlan remote_mac <remoteip/all>
+  show vxlan remotemac <remoteip/all>
   ```
 
 - Example:
@@ -11098,20 +11098,20 @@ This command displays all MACs learnt from a specified remote VTEP IP, or from a
   Total count : 2
   ```
 
-**show vxlan remote_vni <remoteip/all>**
+**show vxlan remotevni <remoteip/all>**
 
 This command displays all the VNIs learnt from the specified remote VTEP, or all the VNIs learnt from all of the remote VTEPs.
 
 - Usage:
 
   ```
-  show vxlan remote_vni <remoteip/all>
+  show vxlan remotevni <remoteip/all>
   ```
 
 - Example:
 
   ```
-  admin@sonic:~$ show vxlan remote_vni 3.3.3.3
+  admin@sonic:~$ show vxlan remotevni 3.3.3.3
   +---------+--------------+-------+
   | VLAN    | RemoteVTEP   |   VNI |
   +=========+==============+=======+
