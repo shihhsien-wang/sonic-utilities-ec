@@ -1,10 +1,10 @@
-
 import click
 from swsscommon.swsscommon import ConfigDBConnector
 from .validated_config_db_connector import ValidatedConfigDBConnector
 import ipaddress
 from jsonpatch import JsonPatchConflict
 from jsonpointer import JsonPointerException
+import netaddr
 
 ADHOC_VALIDATION = False
 CFG_PORTCHANNEL_PREFIX = "PortChannel"
@@ -265,6 +265,45 @@ def config_mclag_session_timeout(ctx, domain_id, time_in_secs):
     fvs['session_timeout'] = str(time_in_secs)
     db.mod_entry('MCLAG_DOMAIN', domain_id, fvs)
 
+#mclag system mac config
+@mclag.group('system-mac')
+@click.pass_context
+def mclag_system_mac(ctx):
+    pass
+
+@mclag_system_mac.command('add')
+@click.argument('domain_id', metavar='<domain_id>', required=True)
+@click.argument('mac', metavar='<MAC>', required=True)
+@click.pass_context
+def add_mclag_system_mac(ctx, domain_id, mac):
+    """Configure MCLAG system MAC"""
+    db = ctx.obj['db']
+    entry = db.get_entry('MCLAG_DOMAIN', domain_id)
+    if len(entry) == 0:
+        ctx.fail("MCLAG Domain " + domain_id + " not configured, configure mclag domain first")
+
+    try:
+        mac_addr = str(netaddr.EUI(mac)).replace("-", ":")
+    except (netaddr.core.AddrFormatError, ValueError):
+        ctx.fail("MAC address {} is invalidated".format(mac))
+
+    fvs = {}
+    fvs['mclag_system_id'] = mac_addr
+    db.mod_entry('MCLAG_DOMAIN', domain_id, fvs)
+
+@mclag_system_mac.command('del')
+@click.argument('domain_id', metavar='<domain_id>', required=True)
+@click.pass_context
+def del_mclag_system_mac(ctx, domain_id):
+    """Remove MCLAG system MAC"""
+    db = ctx.obj['db']
+    entry = db.get_entry('MCLAG_DOMAIN', domain_id)
+    if len(entry) == 0:
+        ctx.fail("MCLAG Domain " + domain_id + " not configured, configure mclag domain first")
+
+    fvs = {}
+    fvs['mclag_system_id'] = ""
+    db.mod_entry('MCLAG_DOMAIN', domain_id, fvs)
 
 #mclag interface config
 @mclag.group('member')

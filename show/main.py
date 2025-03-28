@@ -69,6 +69,7 @@ from . import plugins
 from . import syslog
 from . import dns
 from . import stp
+from . import mclag
 
 # Global Variables
 PLATFORM_JSON = 'platform.json'
@@ -331,6 +332,7 @@ cli.add_command(kdump.kdump)
 cli.add_command(interfaces.interfaces)
 cli.add_command(kdump.kdump)
 cli.add_command(kube.kubernetes)
+cli.add_command(mclag.mclag)
 cli.add_command(muxcable.muxcable)
 cli.add_command(nat.nat)
 cli.add_command(platform.platform)
