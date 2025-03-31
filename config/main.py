@@ -3529,8 +3529,8 @@ def add_snmp_agent_address(ctx, agentip, port, vrf):
     config_db.set_entry('SNMP_AGENT_ADDRESS_CONFIG', key, {})
 
     #Restarting the SNMP service will regenerate snmpd.conf and rerun snmpd
-    cmd="systemctl restart snmp"
-    os.system (cmd)
+    os.system("systemctl reset-failed snmp")
+    os.system("systemctl restart snmp")
 
 @snmpagentaddress.command('del')
 @click.argument('agentip', metavar='<SNMP AGENT LISTENING IP Address>', required=True)
@@ -3548,8 +3548,8 @@ def del_snmp_agent_address(ctx, agentip, port, vrf):
         key = key+vrf
     config_db = ctx.obj['db']
     config_db.set_entry('SNMP_AGENT_ADDRESS_CONFIG', key, None)
-    cmd="systemctl restart snmp"
-    os.system (cmd)
+    os.system("systemctl reset-failed snmp")
+    os.system("systemctl restart snmp")
 
 @config.group(cls=clicommon.AbbreviationGroup)
 @click.pass_context
@@ -3579,8 +3579,8 @@ def modify_snmptrap_server(ctx, ver, serverip, port, vrf, comm):
     else:
         config_db.mod_entry('SNMP_TRAP_CONFIG', "v3TrapDest", {"DestIp": serverip, "DestPort": port, "vrf": vrf, "Community": comm})
 
-    cmd="systemctl restart snmp"
-    os.system (cmd)
+    os.system("systemctl reset-failed snmp")
+    os.system("systemctl restart snmp")
 
 @snmptrap.command('del')
 @click.argument('ver', metavar='<SNMP Version>', type=click.Choice(['1', '2', '3']), required=True)
@@ -3595,8 +3595,9 @@ def delete_snmptrap_server(ctx, ver):
         config_db.mod_entry('SNMP_TRAP_CONFIG', "v2TrapDest", None)
     else:
         config_db.mod_entry('SNMP_TRAP_CONFIG', "v3TrapDest", None)
-    cmd="systemctl restart snmp"
-    os.system (cmd)
+
+    os.system("systemctl reset-failed snmp")
+    os.system("systemctl restart snmp")
 
 
 
@@ -3634,9 +3635,10 @@ def is_valid_user_type(user_type):
 
 
 def is_valid_auth_type(user_auth_type):
-    user_auth_types = ['MD5', 'SHA', 'HMAC-SHA-2']
+    user_auth_types = ['MD5', 'SHA', 'SHA-224', 'SHA-256', 'SHA-384', 'SHA-512']
     if user_auth_type not in user_auth_types:
-        click.echo("Invalid user authentication type. Must be one of these 'MD5', 'SHA', or 'HMAC-SHA-2'")
+        click.echo("Invalid user authentication type. Must be one of these"\
+                   " 'MD5', 'SHA', 'SHA-224', 'SHA-256', 'SHA-384' or 'SHA-512'")
         return False
     return True
 
@@ -4065,7 +4067,7 @@ def user(db):
 @click.argument('user', metavar='<snmp_user>', required=True)
 @click.argument('user_type', metavar='<noAuthNoPriv|AuthNoPriv|Priv>', required=True)
 @click.argument('user_permission_type', metavar='<RO|RW>', required=True)
-@click.argument('user_auth_type', metavar='<MD5|SHA|HMAC-SHA-2>', required=False)
+@click.argument('user_auth_type', metavar='<MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512>', required=False)
 @click.argument('user_auth_password', metavar='<auth_password>', required=False)
 @click.argument('user_encrypt_type', metavar='<DES|AES>', required=False)
 @click.argument('user_encrypt_password', metavar='<encrypt_password>', required=False)
@@ -4089,7 +4091,7 @@ def add_user(db, user, user_type, user_permission_type, user_auth_type, user_aut
             sys.exit(SnmpUserError.NoAuthNoPrivHasAuthType)
     else:
         if not user_auth_type:
-            click.echo("User auth type is missing.  Must be MD5, SHA, or HMAC-SHA-2")
+            click.echo("User auth type is missing.  Must be MD5, SHA, SHA-224, SHA-256, SHA-384 or SHA-512")
             sys.exit(SnmpUserError.AuthTypeMd5OrShaOrHmacsha2IsMissing)
         if user_auth_type:
             user_auth_type = user_auth_type.upper()
