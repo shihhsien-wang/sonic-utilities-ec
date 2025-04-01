@@ -113,6 +113,8 @@ DEFAULT_TPID = "0x8100"
 asic_type = None
 
 DSCP_RANGE = click.IntRange(min=0, max=63)
+TC_RANGE = click.IntRange(min=0, max=7)
+COS_RANGE = click.IntRange(min=0, max=7)
 TTL_RANGE = click.IntRange(min=0, max=255)
 QUEUE_RANGE = click.IntRange(min=0, max=255)
 GRE_TYPE_RANGE = click.IntRange(min=0, max=65535)
@@ -124,6 +126,13 @@ sonic_cfggen = load_module_from_source('sonic_cfggen', '/usr/local/bin/sonic-cfg
 #
 # Helper functions
 #
+
+def is_valid_profile_name(_str, allowed_list):
+    for s in _str:
+        if s not in allowed_list:
+            return False
+
+    return True
 
 # Sort nested dict
 def sort_dict(data):
@@ -6114,213 +6123,6 @@ def del_route(ctx, command_str):
             current_entry['blackhole'] = ','.join((str(e)) for e in blackhole)
             config_db.set_entry("STATIC_ROUTE", key, current_entry)
 
-#
-# 'acl' group ('config acl ...')
-#
-
-@config.group(cls=clicommon.AbbreviationGroup)
-def acl():
-    """ACL-related configuration tasks"""
-    pass
-
-#
-# 'add' subgroup ('config acl add ...')
-#
-
-@acl.group(cls=clicommon.AbbreviationGroup)
-def add():
-    """
-    Add ACL configuration.
-    """
-    pass
-
-
-def get_acl_bound_ports():
-    config_db = ConfigDBConnector()
-    config_db.connect()
-
-    ports = set()
-    portchannel_members = set()
-
-    portchannel_member_dict = config_db.get_table("PORTCHANNEL_MEMBER")
-    for key in portchannel_member_dict:
-        ports.add(key[0])
-        portchannel_members.add(key[1])
-
-    port_dict = config_db.get_table("PORT")
-    for key in port_dict:
-        if key not in portchannel_members:
-            ports.add(key)
-
-    return list(ports)
-
-
-def expand_vlan_ports(port_name):
-    """
-    Expands a given VLAN interface into its member ports.
-
-    If the provided interface is a VLAN, then this method will return its member ports.
-
-    If the provided interface is not a VLAN, then this method will return a list with only
-    the provided interface in it.
-    """
-    config_db = ConfigDBConnector()
-    config_db.connect()
-
-    if port_name not in config_db.get_keys("VLAN"):
-        return [port_name]
-
-    vlan_members = config_db.get_keys("VLAN_MEMBER")
-
-    members = [member for vlan, member in vlan_members if port_name == vlan]
-
-    if not members:
-        raise ValueError("Cannot bind empty VLAN {}".format(port_name))
-
-    return members
-
-
-def parse_acl_table_info(table_name, table_type, description, ports, stage):
-    table_info = {"type": table_type}
-
-    if description:
-        table_info["policy_desc"] = description
-    else:
-        table_info["policy_desc"] = table_name
-
-    if not ports and ports != None:
-        raise ValueError("Cannot bind empty list of ports")
-
-    port_list = []
-    valid_acl_ports = get_acl_bound_ports()
-    if ports:
-        for port in ports.split(","):
-            port_list += expand_vlan_ports(port)
-        port_list = list(set(port_list))  # convert to set first to remove duplicate ifaces
-    else:
-        port_list = valid_acl_ports
-
-    for port in port_list:
-        if port not in valid_acl_ports:
-            raise ValueError("Cannot bind ACL to specified port {}".format(port))
-
-    table_info["ports"] = port_list
-
-    table_info["stage"] = stage
-
-    return table_info
-
-
-def validate_services(ctx, param, value):
-    if value == None:
-        return None
-
-    service_list = value.split(',')
-
-    for s in service_list:
-        if s not in ['SSH', 'SNMP', 'NTP']:
-            raise click.BadParameter('{} is not a valid service.'.format(value))
-
-    return service_list
-
-
-#
-# 'table' subcommand ('config acl add table ...')
-#
-
-@add.command()
-@click.argument("table_name", metavar="<table_name>")
-@click.argument("table_type", metavar="<table_type>")
-@click.option("-d", "--description")
-@click.option("-p", "--ports")
-@click.option("-s", "--stage", type=click.Choice(["ingress", "egress"]), default="ingress")
-@click.option("-S", "--services", metavar="<SSH|SNMP|NTP>",
-              callback=validate_services, help="List of services")
-@click.pass_context
-def table(ctx, table_name, table_type, description, ports, stage, services):
-    """
-    Add ACL table
-    """
-    config_db = ConfigDBConnector()
-    config_db.connect()
-
-    try:
-        table_info = parse_acl_table_info(table_name, table_type, description, ports, stage)
-    except ValueError as e:
-        ctx.fail("Failed to parse ACL table config: exception={}".format(e))
-
-    if "CTRLPLANE" == table_type.upper():
-        if not services:
-            raise click.BadParameter('Option "--services" is required for CTRLPLANE.')
-
-        table_info["services@"] = ",".join(services)
-        table_info["type"] = "CTRLPLANE"
-        del table_info["ports"]
-
-    config_db.set_entry("ACL_TABLE", table_name, table_info)
-
-
-#
-# 'remove' subgroup ('config acl remove ...')
-#
-
-@acl.group(cls=clicommon.AbbreviationGroup)
-def remove():
-    """
-    Remove ACL configuration.
-    """
-    pass
-
-#
-# 'table' subcommand ('config acl remove table ...')
-#
-
-@remove.command()
-@click.argument("table_name", metavar="<table_name>")
-def table(table_name):
-    """
-    Remove ACL table
-    """
-    config_db = ConfigDBConnector()
-    config_db.connect()
-    config_db.set_entry("ACL_TABLE", table_name, None)
-
-
-#
-# 'acl update' group
-#
-
-@acl.group(cls=clicommon.AbbreviationGroup)
-def update():
-    """ACL-related configuration tasks"""
-    pass
-
-
-#
-# 'full' subcommand
-#
-
-@update.command()
-@click.argument('file_name', required=True)
-def full(file_name):
-    """Full update of ACL rules configuration."""
-    log.log_info("'acl update full {}' executing...".format(file_name))
-    command = ['acl-loader', 'update', 'full', str(file_name)]
-    clicommon.run_command(command)
-
-
-#
-# 'incremental' subcommand
-#
-
-@update.command()
-@click.argument('file_name', required=True)
-def incremental(file_name):
-    """Incremental update of ACL rule configuration."""
-    log.log_info("'acl update incremental {}' executing...".format(file_name))
-    command = ['acl-loader', 'update', 'incremental', str(file_name)]
-    clicommon.run_command(command)
-
 
 #
 # 'dropcounters' group ('config dropcounters ...')
@@ -7647,10 +7449,12 @@ def date(date, time):
     date_time = f'{date} {time}'
     clicommon.run_command(['timedatectl', 'set-time', date_time])
 
+from . import acl as acl_command
 from . import buffer as buffer_command
 from . import qos as qos_command
 from . import wred as wred_command
 
+acl_command.add_command(config)
 buffer_command.add_command(buffer, buffer_profile, interface_buffer)
 qos_command.add_command(qos, interface)
 wred_command.add_command(config, interface)

@@ -10,7 +10,7 @@ import openconfig_acl
 import tabulate
 import pyangbind.lib.pybindJSON as pybindJSON
 from natsort import natsorted
-from sonic_py_common import multi_asic
+from sonic_py_common import multi_asic, device_info
 from swsscommon.swsscommon import SonicV2Connector, ConfigDBConnector
 from utilities_common.general import load_db_config
 
@@ -47,6 +47,10 @@ class AclAction:
     MIRROR         = "MIRROR_ACTION"
     MIRROR_INGRESS = "MIRROR_INGRESS_ACTION"
     MIRROR_EGRESS  = "MIRROR_EGRESS_ACTION"
+    SET_TC         = "SET_TC"
+    SET_COS        = "SET_COS"
+    SET_DSCP       = "SET_DSCP"
+    SET_POLICER    = "SET_POLICER"
 
 
 class PacketAction:
@@ -434,6 +438,10 @@ class AclLoader(object):
                 if not session_name:
                     raise AclLoaderException("Mirroring session does not exist")
 
+                # Always use the ACL table stage because we do not support bind different stage action
+                stage = self.tables_db_info[table_name].get("stage", Stage.INGRESS)
+                self.set_mirror_stage(stage)
+
                 if self.mirror_stage == Stage.INGRESS:
                     mirror_action = AclAction.MIRROR_INGRESS
                 elif self.mirror_stage == Stage.EGRESS:
@@ -565,14 +573,14 @@ class AclLoader(object):
 
         if rule.ip.config.source_ip_address:
             source_ip_address = rule.ip.config.source_ip_address
-            if ipaddress.ip_network(source_ip_address).version == 4:
+            if ipaddress.ip_network(source_ip_address, strict=False).version == 4:
                 rule_props["SRC_IP"] = source_ip_address
             else:
                 rule_props["SRC_IPV6"] = source_ip_address
 
         if rule.ip.config.destination_ip_address:
             destination_ip_address = rule.ip.config.destination_ip_address
-            if ipaddress.ip_network(destination_ip_address).version == 4:
+            if ipaddress.ip_network(destination_ip_address, strict=False).version == 4:
                 rule_props["DST_IP"] = destination_ip_address
             else:
                 rule_props["DST_IPV6"] = destination_ip_address
@@ -785,7 +793,7 @@ class AclLoader(object):
                 except AclLoaderException as ex:
                     error("Error processing rule %s: %s. Skipped." % (acl_entry_name, ex))
 
-            if not self.is_table_egress(table_name):
+            if not self.is_table_mirror(table_name):
                 deep_update(self.rules_info, self.deny_rule(table_name))
 
     def full_update(self):
@@ -803,11 +811,19 @@ class AclLoader(object):
                 for namespace_configdb in self.per_npu_configdb.values():
                     namespace_configdb.mod_entry(self.ACL_RULE, key, None)
 
+        if self.current_table is None:
+            self.configdb.mod_config({self.ACL_RULE: self.rules_info})
 
-        self.configdb.mod_config({self.ACL_RULE: self.rules_info})
-        # Program for per front asic namespace also if present
-        for namespace_configdb in self.per_npu_configdb.values():
-            namespace_configdb.mod_config({self.ACL_RULE: self.rules_info})
+            # Program for per front asic namespace also if present
+            for namespace_configdb in self.per_npu_configdb.values():
+                namespace_configdb.mod_config({self.ACL_RULE: self.rules_info})
+        else:
+            for key, data in self.rules_info.items():
+                if self.current_table == key[0]:
+                    self.configdb.mod_entry(self.ACL_RULE, key, data)
+
+                    for namespace_configdb in self.per_npu_configdb.values():
+                        namespace_configdb.mod_entry(self.ACL_RULE, key, data)
 
     def incremental_update(self):
         """
@@ -844,11 +860,11 @@ class AclLoader(object):
                 current_dataplane_rules.add(key)
 
         # Remove all existing dataplane rules
-        for key in current_dataplane_rules:
-            self.configdb.mod_entry(self.ACL_RULE, key, None)
-            # Program for per-asic namespace also if present
-            for namespace_configdb in self.per_npu_configdb.values():
-                namespace_configdb.mod_entry(self.ACL_RULE, key, None)
+        # for key in current_dataplane_rules:
+        #     self.configdb.mod_entry(self.ACL_RULE, key, None)
+        #     # Program for per-asic namespace also if present
+        #     for namespace_configdb in self.per_npu_configdb.values():
+        #         namespace_configdb.mod_entry(self.ACL_RULE, key, None)
 
 
         # Add all new dataplane rules
@@ -904,7 +920,7 @@ class AclLoader(object):
         :param table_name: Optional. ACL table name. Filter tables by specified name.
         :return:
         """
-        header = ("Name", "Type", "Binding", "Description", "Stage", "Status")
+        header = ("Name", "Type", "Binding", "Description", "Stage", "Policer", "Status")
 
         data = []
         for key, val in self.get_tables_db_info().items():
@@ -919,21 +935,36 @@ class AclLoader(object):
                 status = 'N/A'
             if val["type"] == AclLoader.ACL_TABLE_TYPE_CTRLPLANE:
                 services = natsorted(val["services"])
-                data.append([key, val["type"], services[0], val["policy_desc"], stage, status])
+                data.append([key, val["type"], services[0], val["policy_desc"], stage, "", status])
 
                 if len(services) > 1:
                     for service in services[1:]:
                         data.append(["", "", service, "", "", ""])
             else:
-                if not val["ports"]:
-                    data.append([key, val["type"], "", val["policy_desc"], stage, status])
-                else:
-                    ports = natsorted(val["ports"])
-                    data.append([key, val["type"], ports[0], val["policy_desc"], stage, status])
+                ports = natsorted(val["ports"])
+                has_policer = True if "set_policer" in val.get("actions", "") else False
 
-                    if len(ports) > 1:
-                        for port in ports[1:]:
-                            data.append(["", "", port, "", "", ""])
+                acl_table_type = self.configdb.get_entry('ACL_TABLE_TYPE', val["type"])
+                if not has_policer and "set_policer" in acl_table_type.get("actions", ""):
+                    has_policer = True
+
+                _data = [
+                    key,
+                    val["type"],
+                    "",
+                    val["policy_desc"],
+                    stage,
+                    "Yes" if has_policer else "",
+                    status
+                ]
+
+                while len(ports):
+                    if len(ports):
+                        _data[2] = ports.pop(0)
+
+                    data.append(_data)
+
+                    _data = ["", "", "", "", "", "", ""]
 
         print(tabulate.tabulate(data, headers=header, tablefmt="simple", missingval=""))
 
@@ -947,20 +978,31 @@ class AclLoader(object):
                             "Policer", "Monitor Port", "SRC Port", "Direction")
         span_header = ("Name", "Status", "DST Port", "SRC Port", "Direction", "Queue", "Policer")
 
+        asic_type = device_info.get_sonic_version_info().get('asic_type', '')
         erspan_data = []
         span_data = []
         for key, val in self.get_sessions_db_info().items():
             if session_name and key != session_name:
                 continue
 
+            if asic_type == 'barefoot':
+                queue = "UC{}".format(val.get("queue", "0"))
+            if asic_type == 'broadcom':
+                queue = "MC0"
+
             if val.get("type") == "SPAN":
                 span_data.append([key, val.get("status", ""), val.get("dst_port", ""),
                                        val.get("src_port", ""), val.get("direction", "").lower(),
-                                       val.get("queue", ""), val.get("policer", "")])
+                                       queue, val.get("policer", "")])
             else:
+                gre_type = val.get("gre_type", "")
+                if gre_type == "":
+                    gre_type = "0x88be"
+                gre_type = str(hex(int(gre_type))) if gre_type.isdigit() else gre_type
+
                 erspan_data.append([key, val.get("status", ""), val.get("src_ip", ""),
-                                         val.get("dst_ip", ""), val.get("gre_type", ""), val.get("dscp", ""),
-                                         val.get("ttl", ""), val.get("queue", ""), val.get("policer", ""),
+                                         val.get("dst_ip", ""), gre_type, val.get("dscp", ""),
+                                         val.get("ttl", ""), queue, val.get("policer", ""),
                                          val.get("monitor_port", ""), val.get("src_port", ""), val.get("direction", "").lower()])
 
         print("ERSPAN Sessions")
@@ -976,17 +1018,111 @@ class AclLoader(object):
         :param policer_name: Optional. Policer name. Filter policers by specified name.
         :return:
         """
-        header = ("Name", "Type", "Mode", "CIR", "CBS")
+
+        def convert_bytes_to_display_string(value):
+            if value < 1024:
+                return '{:,} Bytes'.format(value)
+
+            value = value // 1024
+            if value % 1024:
+                return '{:,} KiB'.format(value)
+
+            value = value // 1024
+            if value % 1024:
+                return '{:,} MiB'.format(value)
+
+            value = value // 1024
+            return '{:,} GiB'.format(value)
+
+        def convert_bytes_per_second_to_display_string(value):
+            value = value * 8
+            if value < 1000:
+                return '{:,} bps'.format(value)
+
+            value = value // 1000
+            if value % 1000:
+                return '{:,} kbps'.format(value)
+
+            value = value // 1000
+            if value % 1000:
+                return '{:,} Mbps'.format(value)
+
+            value = value // 1000
+            return '{:,} Gbps'.format(value)
+
+        header = ("Name", "Type", "Mode", "Color Source", "CIR", "CBS", "PIR", "PBS", "Green Packet Action", "Yellow Packet Action", "Red Packet Action")
+
+        PACKET_ACTIONS = {
+            "forward": "forward",
+            "drop": "drop",
+            "set_cos": "COS",
+            "set_dscp": "DSCP",
+            "set_tc": "TC",
+        }
+
+        def get_color_packet_action_str(values, color):
+            packet_action_str = "{}_packet_action".format(color)
+            if packet_action_str not in values:
+                return ""
+
+            packet_action = values.get(packet_action_str)
+
+            if packet_action == "forward":
+                action_str = "forward"
+            elif packet_action == "drop":
+                action_str = "drop"
+            elif "set_tc" in packet_action:
+                action_str = "TC: {}".format(values.get("{}_packet_new_tc".format(color)))
+            elif "set_cos" in packet_action:
+                action_str = "COS: {}".format(values.get("{}_packet_new_cos".format(color)))
+            elif "set_dscp" in packet_action:
+                action_str = "DSCP: {}".format(values.get("{}_packet_new_dscp".format(color)))
+
+            return action_str
 
         data = []
         for key, val in self.get_policers_db_info().items():
             if policer_name and key != policer_name:
                 continue
 
-            data.append([key, val["meter_type"], val["mode"], val.get("cir", ""), val.get("cbs", "")])
+            cir = val.get("cir", "")
+            cbs = val.get("cbs", "")
+            pir = val.get("pir", "")
+            pbs = val.get("pbs", "")
+
+            if val["mode"] == 'packets':
+                cir = "{:,}".format(int(cir)) if cir != "" else ""
+                cbs = "{:,}".format(int(cbs)) if cbs != "" else ""
+                pir = "{:,}".format(int(pir)) if pir != "" else ""
+                pbs = "{:,}".format(int(pbs)) if pbs != "" else ""
+            else:
+                if cir != "":
+                    cir = convert_bytes_per_second_to_display_string(int(cir))
+
+                if cbs != "":
+                    cbs = convert_bytes_to_display_string(int(cbs))
+
+                if pir != "":
+                    pir = convert_bytes_per_second_to_display_string(int(pir))
+
+                if pbs != "":
+                    pbs = convert_bytes_to_display_string(int(pbs))
+
+            data.append([
+                key,
+                val.get("meter_type", ""),
+                val.get("mode", ""),
+                val.get("color_source", "aware"),
+                cir,
+                cbs,
+                pir,
+                pbs,
+                get_color_packet_action_str(val, "green"),
+                get_color_packet_action_str(val, "yellow"),
+                get_color_packet_action_str(val, "red"),
+            ])
 
         print(tabulate.tabulate(data, headers=header, tablefmt="simple", missingval=""))
-
 
     def show_rule(self, table_name, rule_id):
         """
@@ -1006,28 +1142,49 @@ class AclLoader(object):
             return priority
 
         def pop_action(val):
-            action = ""
+            actions = []
 
             for key in dict(val):
-                key = key.upper()
-                if key == AclAction.PACKET:
-                    action = val.pop(key)
-                elif key == AclAction.REDIRECT:
-                    action = "REDIRECT: {}".format(val.pop(key))
-                elif key in (AclAction.MIRROR, AclAction.MIRROR_INGRESS):
-                    action = "MIRROR INGRESS: {}".format(val.pop(key))
-                elif key == AclAction.MIRROR_EGRESS:
-                    action = "MIRROR EGRESS: {}".format(val.pop(key))
+                _key = key.upper()
+                if _key == AclAction.PACKET:
+                    actions.append(val.pop(key))
+                elif _key == AclAction.REDIRECT:
+                    actions.append("REDIRECT: {}".format(val.pop(key)))
+                elif _key in (AclAction.MIRROR, AclAction.MIRROR_INGRESS):
+                    actions.append("MIRROR INGRESS: {}".format(val.pop(key)))
+                elif _key == AclAction.MIRROR_EGRESS:
+                    actions.append("MIRROR EGRESS: {}".format(val.pop(key)))
+                elif _key == AclAction.SET_TC:
+                    actions.append("SET TC: {}".format(val.pop(key)))
+                elif _key == AclAction.SET_COS:
+                    actions.append("SET COS: {}".format(val.pop(key)))
+                elif _key == AclAction.SET_DSCP:
+                    actions.append("SET DSCP: {}".format(val.pop(key)))
+                elif _key == AclAction.SET_POLICER:
+                    actions.append("POLICER: {}".format(val.pop(key)))
                 else:
                     continue
 
-            return action
+            return actions
 
         def pop_matches(val):
             matches = list(sorted(["%s: %s" % (k, val[k]) for k in val]))
             if len(matches) == 0:
                 matches.append("N/A")
             return matches
+
+        def get_status(state_db, table, key):
+            """
+            :param table: table name in state_db
+            :param key: key in the table
+            :return: "active" / "inactive"
+            """
+            entry = state_db.get_all(state_db.STATE_DB, "{}|{}".format(table, key))
+
+            # For control plan ACL rule, there is no information in state_db,
+            # so the default value of "active" is "true"
+            active = entry.get("active", "true")
+            return "Inactive" if active == "false" else "Active"
 
         raw_data = []
         for (tname, rid), val in self.get_rules_db_info().items():
@@ -1039,22 +1196,26 @@ class AclLoader(object):
                 continue
 
             priority = pop_priority(val)
-            action = pop_action(val)
+            actions = pop_action(val)
             matches = pop_matches(val)
-            # Get ACL rule status from STATE_DB
-            status_key = (tname, rid)
-            if status_key in self.acl_rule_status:
-                status = self.acl_rule_status[status_key]['status']
-            else:
-                status = "N/A"
-            rule_data = [[tname, rid, priority, action, matches[0], status]]
-            if len(matches) > 1:
-                for m in matches[1:]:
-                    rule_data.append(["", "", "", "", m, ""])
+            status = get_status(self.statedb, self.STATE_ACL_RULE, "|".join([tname, rid]))
+
+            rule_data = [[tname, rid, priority, actions[0], matches[0], status]]
+
+            max_len = max(len(actions), len(matches))
+            if 1 < max_len:
+                if len(actions) < max_len:
+                    actions.extend([""] * (max_len - len(actions)))
+                if len(matches) < max_len:
+                    matches.extend([""] * (max_len - len(matches)))
+
+                for act, match in zip(actions[1:], matches[1:]):
+                    rule_data.append(["", "", "", act, match, ""])
 
             raw_data.append([priority, rule_data])
 
-        raw_data.sort(key=lambda x: x[0], reverse=True)
+        # Sort by priority (from highest to lowest priority)
+        raw_data.sort(key=lambda x: int(x[1][0][2]), reverse=True)
 
         data = []
         for _, d in raw_data:
