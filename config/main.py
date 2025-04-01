@@ -3559,45 +3559,67 @@ def snmptrap(ctx):
     config_db.connect()
     ctx.obj = {'db': config_db}
 
-@snmptrap.command('modify')
-@click.argument('ver', metavar='<SNMP Version>', type=click.Choice(['1', '2', '3']), required=True)
+@snmptrap.command('version')
+@click.argument('version', metavar='<SNMP Version>', type=click.Choice(['1', '2']), required=True)
+@click.pass_context
+def snmptrap_version(ctx, version):
+    """Modify the SNMP Trap version configuration"""
+
+    config_db = ctx.obj['db']
+    config_db.mod_entry('SNMP_TRAP_CONFIG', "GLOBAL", {"version": version})
+
+    cmd="systemctl reset-failed snmp"
+    os.system (cmd)
+
+    cmd="systemctl restart snmp"
+    os.system (cmd)
+
+@snmptrap.command('add')
 @click.argument('serverip', metavar='<SNMP TRAP SERVER IP Address>', required=True)
 @click.option('-p', '--port', help="SNMP Trap Server port, default 162", default="162")
 @click.option('-v', '--vrf', help="VRF Name mgmt/DataVrfName/None", default="None")
 @click.option('-c', '--comm', help="Community", default="public")
 @click.pass_context
-def modify_snmptrap_server(ctx, ver, serverip, port, vrf, comm):
-    """Modify the SNMP Trap server configuration"""
+def add_snmptrap_server(ctx, serverip, port, vrf, comm):
+    """Add the SNMP Trap server configuration"""
 
     #SNMP_TRAP_CONFIG for each SNMP version
     config_db = ctx.obj['db']
-    if ver == "1":
-        #By default, v1TrapDest value in snmp.yml is "NotConfigured". Modify it.
-        config_db.mod_entry('SNMP_TRAP_CONFIG', "v1TrapDest", {"DestIp": serverip, "DestPort": port, "vrf": vrf, "Community": comm})
-    elif ver == "2":
-        config_db.mod_entry('SNMP_TRAP_CONFIG', "v2TrapDest", {"DestIp": serverip, "DestPort": port, "vrf": vrf, "Community": comm})
-    else:
-        config_db.mod_entry('SNMP_TRAP_CONFIG', "v3TrapDest", {"DestIp": serverip, "DestPort": port, "vrf": vrf, "Community": comm})
 
-    os.system("systemctl reset-failed snmp")
-    os.system("systemctl restart snmp")
+    traps = config_db.get_keys("SNMP_TRAP_RECEIVER")
+    if len(traps) >= 20:
+        ctx.fail("SNMP trap server supported 20 servers.")
+
+    version_entry = config_db.get_entry('SNMP_TRAP_CONFIG', "GLOBAL")
+    if len(version_entry) == 0:
+        config_db.set_entry('SNMP_TRAP_CONFIG', "GLOBAL", {"version": "2"})
+
+    config_db.set_entry('SNMP_TRAP_RECEIVER', serverip, {"ip_addr": serverip, "port": port, "vrf": vrf, "community": comm})
+
+    cmd="systemctl reset-failed snmp"
+    os.system (cmd)
+
+    cmd="systemctl restart snmp"
+    os.system (cmd)
 
 @snmptrap.command('del')
-@click.argument('ver', metavar='<SNMP Version>', type=click.Choice(['1', '2', '3']), required=True)
+@click.argument('serverip', metavar='<SNMP TRAP SERVER IP Address>', required=True)
 @click.pass_context
-def delete_snmptrap_server(ctx, ver):
+def delete_snmptrap_server(ctx, serverip):
     """Delete the SNMP Trap server configuration"""
 
     config_db = ctx.obj['db']
-    if ver == "1":
-        config_db.mod_entry('SNMP_TRAP_CONFIG', "v1TrapDest", None)
-    elif ver == "2":
-        config_db.mod_entry('SNMP_TRAP_CONFIG', "v2TrapDest", None)
-    else:
-        config_db.mod_entry('SNMP_TRAP_CONFIG', "v3TrapDest", None)
+    entry = config_db.get_entry('SNMP_TRAP_RECEIVER', serverip)
+    if len(entry) == 0:
+        ctx.fail("SNMP trap server '{}' not found.".format(serverip))
 
-    os.system("systemctl reset-failed snmp")
-    os.system("systemctl restart snmp")
+    config_db.set_entry('SNMP_TRAP_RECEIVER', serverip, None)
+
+    cmd="systemctl reset-failed snmp"
+    os.system (cmd)
+
+    cmd="systemctl restart snmp"
+    os.system (cmd)
 
 
 
@@ -3652,64 +3674,31 @@ def is_valid_encrypt_type(encrypt_type):
 
 
 def snmp_community_secret_check(snmp_secret):
-    excluded_special_symbols = ['@', ":"]
     if len(snmp_secret) > 32:
         click.echo("SNMP community string length should be not be greater than 32")
-        click.echo("SNMP community string should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
         click.echo("FAILED: SNMP community string length should be not be greater than 32")
-        return False
-    if any(char in excluded_special_symbols for char in snmp_secret):
-        click.echo("SNMP community string length should be not be greater than 32")
-        click.echo("SNMP community string should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
-        click.echo("FAILED: SNMP community string should not have any of these "
-                   "special symbols {}".format(excluded_special_symbols))
         return False
     return True
 
 
 def snmp_username_check(snmp_username):
-    excluded_special_symbols = ['@', ":"]
     if len(snmp_username) > 32:
         click.echo("SNMP user {} length should be not be greater than 32 characters".format(snmp_username))
-        click.echo("SNMP community string should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
         click.echo("FAILED: SNMP user {} length should not be greater than 32 characters".format(snmp_username))
-        return False
-    if any(char in excluded_special_symbols for char in snmp_username):
-        click.echo("SNMP user {} length should be not be greater than 32 characters".format(snmp_username))
-        click.echo("SNMP community string should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
-        click.echo("FAILED: SNMP user {} should not have any of these special "
-                   "symbols {}".format(snmp_username, excluded_special_symbols))
         return False
     return True
 
 
 def snmp_user_secret_check(snmp_secret):
-    excluded_special_symbols = ['@', ":"]
     if len(snmp_secret) < 8:
         click.echo("SNMP user password length should be at least 8 characters")
         click.echo("SNMP user password length should be not be greater than 64")
-        click.echo("SNMP user password should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
         click.echo("FAILED: SNMP user password length should be at least 8 characters")
         return False
     if len(snmp_secret) > 64:
         click.echo("SNMP user password length should be at least 8 characters")
         click.echo("SNMP user password length should be not be greater than 64")
-        click.echo("SNMP user password should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
         click.echo("FAILED: SNMP user password length should be not be greater than 64")
-        return False
-    if any(char in excluded_special_symbols for char in snmp_secret):
-        click.echo("SNMP user password length should be at least 8 characters")
-        click.echo("SNMP user password length should be not be greater than 64")
-        click.echo("SNMP user password should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
-        click.echo("FAILED: SNMP user password should not have any of these special "
-                   "symbols {}".format(excluded_special_symbols))
         return False
     return True
 

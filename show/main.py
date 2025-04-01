@@ -640,19 +640,21 @@ def snmptrap (ctx):
     """Show SNMP agent Trap server configuration"""
     config_db = ConfigDBConnector()
     config_db.connect()
-    traptable = config_db.get_table('SNMP_TRAP_CONFIG')
 
-    header = ['Version', 'TrapReceiverIP', 'Port', 'VRF', 'Community']
+    snmp_version = config_db.get_entry('SNMP_TRAP_CONFIG', 'GLOBAL')
+
+    click.echo("Version : " + snmp_version.get('version', '2'))
+    click.echo("")
+
+    traptable = config_db.get_table('SNMP_TRAP_RECEIVER')
+
+    header = ['IP Address', 'Port', 'VRF', 'Community']
     body = []
     for row in traptable:
-        if row == "v1TrapDest":
-            ver=1
-        elif row == "v2TrapDest":
-            ver=2
-        else:
-            ver=3
-        body.append([ver, traptable[row]['DestIp'], traptable[row]['DestPort'], traptable[row]['vrf'], traptable[row]['Community']])
-    click.echo(tabulate(body, header))
+        body.append([traptable[row]['ip_addr'], traptable[row]['port'], traptable[row]['vrf'], traptable[row]['community']])
+
+    sorted_body = natsorted(body)
+    click.echo(tabulate(sorted_body, header))
 
 
 #

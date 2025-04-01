@@ -155,14 +155,6 @@ class TestSNMPConfigCommands(object):
         assert result.exit_code == 2
         assert 'FAILED: SNMP community string length should be not be greater than 32' in result.output
 
-    def test_config_snmp_community_add_invalid_community_with_excluded_special_characters(self):
-        runner = CliRunner()
-        result = runner.invoke(config.config.commands["snmp"].commands["community"].commands["add"],
-                                                     ["Test@snmp", "ro"])
-        print(result.exit_code)
-        assert result.exit_code == 2
-        assert 'FAILED: SNMP community string should not have any of these special symbols' in result.output
-
     def test_config_snmp_community_add_existing_community(self):
         runner = CliRunner()
         result = runner.invoke(config.config.commands["snmp"].commands["community"].commands["add"], ["Rainer", "rw"])
@@ -217,14 +209,6 @@ class TestSNMPConfigCommands(object):
         print(result.exit_code)
         assert result.exit_code == 3
         assert 'New SNMP community msft to replace current SNMP community Rainer already configured' in result.output
-
-    def test_config_snmp_community_replace_with_invalid_new_community_bad_symbol(self):
-        runner = CliRunner()
-        result = runner.invoke(config.config.commands["snmp"].commands["community"].commands["replace"],
-                                                     ["Rainer", "msft@"])
-        print(result.exit_code)
-        assert result.exit_code == 2
-        assert 'FAILED: SNMP community string should not have any of these special symbols' in result.output
 
     def test_config_snmp_community_replace_with_invalid_new_community_over_32_chars(self):
         runner = CliRunner()
@@ -552,14 +536,6 @@ class TestSNMPConfigCommands(object):
         assert 'FAILED: SNMP user over_32_characters_community_user length should not be greater than 32 characters' \
                in result.output
 
-    def test_config_snmp_user_add_excluded_special_characters_in_username(self):
-        runner = CliRunner()
-        result = runner.invoke(config.config.commands["snmp"].commands["user"].commands["add"],
-                                                     ["Test@user", "noAUthNoPRiv", "ro"])
-        print(result.exit_code)
-        assert result.exit_code == 1
-        assert 'FAILED: SNMP user Test@user should not have any of these special symbols' in result.output
-
     def test_config_snmp_user_add_existing_user(self):
         runner = CliRunner()
         result = runner.invoke(config.config.commands["snmp"].commands["user"].commands["add"],
@@ -650,14 +626,6 @@ class TestSNMPConfigCommands(object):
         print(result.exit_code)
         assert result.exit_code == 13
         assert "FAILED: SNMP user password length should be not be greater than 64" in result.output
-
-    def test_config_snmp_user_add_user_type_priv_invalid_encrypt_password_excluded_special_characters(self):
-        runner = CliRunner()
-        result = runner.invoke(config.config.commands["snmp"].commands["user"].commands["add"],
-                 ["test_nopriv_RO_3", "priv", "ro", "md5", "testauthpass", "DES", "testencrypt@pass"])
-        print(result.exit_code)
-        assert result.exit_code == 13
-        assert "FAILED: SNMP user password should not have any of these special symbols" in result.output
 
     def test_config_snmp_user_add_user_type_priv_invalid_encrypt_password_not_long_enough(self):
         runner = CliRunner()
