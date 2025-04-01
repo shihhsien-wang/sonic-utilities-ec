@@ -2395,9 +2395,11 @@ def protocol_down_brief(interfacename):
 helper = util_base.UtilHelper()
 helper.load_and_register_plugins(plugins, cli)
 
+from . import buffer as buffer_command
 from . import qos as qos_command
 from . import wred as wred_command
 
+buffer_command.add_command(buffer)
 qos_command.add_command(qos)
 wred_command.add_command(cli)
 

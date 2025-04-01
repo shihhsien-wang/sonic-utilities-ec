@@ -7679,9 +7679,11 @@ def date(date, time):
     date_time = f'{date} {time}'
     clicommon.run_command(['timedatectl', 'set-time', date_time])
 
+from . import buffer as buffer_command
 from . import qos as qos_command
 from . import wred as wred_command
 
+buffer_command.add_command(buffer, buffer_profile, interface_buffer)
 qos_command.add_command(qos, interface)
 wred_command.add_command(config, interface)
 
