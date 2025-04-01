@@ -916,9 +916,12 @@ def scheduler(db, interface_name):
                         e['weight'], e['meter_type'], e['pir']])
 
         click.echo(port_name)
-        click.echo(tabulate(body, header, stralign='left')+ '\n')
+        click.echo(tabulate(body, header, stralign='left') + '\n')
+
+from . import buffer as buffer_command
 from . import qos as qos_command
 from . import wred as wred_command
 
+buffer_command.add_command(interfaces)
 qos_command.add_command(interfaces)
 wred_command.add_command(interfaces)

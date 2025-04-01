@@ -33,9 +33,9 @@ def showPfcAsym(interface):
         db_keys = configdb.keys(configdb.CONFIG_DB, 'PORT|*')
 
     table = []
-        
+
     for i in db_keys or [None]:
-        key = None 
+        key = None
         if i:
             key = i.split('|')[-1]
 
@@ -53,67 +53,65 @@ def configPfcPrio(status, interface, priority):
     configdb = ConfigDBConnector()
     configdb.connect()
 
-    if interface not in configdb.get_keys('PORT_QOS_MAP'):
-        click.echo('Cannot find interface {0}'.format(interface))
-        return 
-
-    """Current lossless priorities on the interface""" 
+    """Current lossless priorities on the interface"""
     entry = configdb.get_entry('PORT_QOS_MAP', interface)
-    enable_prio = entry.get('pfc_enable').split(',')
-    
+    enable_prio = entry.get('pfc_enable', '').split(',')
+
     """Avoid '' in enable_prio"""
     enable_prio = [x.strip() for x in enable_prio if x.strip()]
-    
+
     if status == 'on' and priority in enable_prio:
         click.echo('Priority {0} has already been enabled on {1}'.format(priority, interface))
         return
-    
+
     if status == 'off' and priority not in enable_prio:
         click.echo('Priority {0} is not enabled on {1}'.format(priority, interface))
         return
-    
+
     if status == 'on':
         enable_prio.append(priority)
-    
+
     else:
         enable_prio.remove(priority)
-     
-    enable_prio.sort()    
-    configdb.mod_entry("PORT_QOS_MAP", interface, {'pfc_enable': ','.join(enable_prio)})
-    
+
+    enable_prio.sort()
+    configdb.mod_entry("PORT_QOS_MAP", interface,
+                      {'pfc_enable': ','.join(enable_prio),
+                       'pfcwd_sw_enable': ','.join(enable_prio)})
+
     """Show the latest PFC configuration"""
     showPfcPrio(interface)
-     
+
 def showPfcPrio(interface):
     """
     PFC handler to display PFC enabled priority information.
     """
     header = ('Interface', 'Lossless priorities')
     table = []
-        
+
     configdb = ConfigDBConnector()
     configdb.connect()
-    
+
     """Get all the interfaces with QoS map information"""
     intfs = configdb.get_keys('PORT_QOS_MAP')
-    
-    """The user specifies an interface but we cannot find it"""    
+
+    """The user specifies an interface but we cannot find it"""
     if interface and interface not in intfs:
         click.echo('Cannot find interface {0}'.format(interface))
-        return 
-    
+        return
+
     if interface:
         intfs = [interface]
-    
-    for intf in intfs: 
+
+    for intf in intfs:
         entry = configdb.get_entry('PORT_QOS_MAP', intf)
         table.append([intf, entry.get('pfc_enable', 'N/A')])
-    
+
     sorted_table = natsorted(table)
     click.echo()
     click.echo(tabulate(sorted_table, headers=header, tablefmt="simple", missingval=""))
     click.echo()
-    
+
 @click.group()
 def cli():
     """PFC Command Line"""
@@ -143,7 +141,7 @@ def configAsym(status, interface):
 def configPrio(status, interface, priority):
     """Configure PFC on a given priority."""
     configPfcPrio(status, interface, priority)
-    
+
 @click.command()
 @click.argument('interface', type=click.STRING, required=False)
 def showAsym(interface):
