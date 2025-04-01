@@ -903,7 +903,7 @@
     "SNMP_USER|test_authpriv_RO_3": {
         "SNMP_USER_TYPE": "AuthNoPriv",
         "SNMP_USER_PERMISSION": "RO",
-        "SNMP_USER_AUTH_TYPE": "HMAC-SHA-2",
+        "SNMP_USER_AUTH_TYPE": "SHA-512",
         "SNMP_USER_AUTH_PASSWORD": "test_authpriv_RO_3_authpass",
         "SNMP_USER_ENCRYPTION_TYPE": "",
         "SNMP_USER_ENCRYPTION_PASSWORD": ""
@@ -959,7 +959,7 @@
     "SNMP_USER|test_priv_RO_6": {
         "SNMP_USER_TYPE": "Priv",
         "SNMP_USER_PERMISSION": "RO",
-        "SNMP_USER_AUTH_TYPE": "HMAC-SHA-2",
+        "SNMP_USER_AUTH_TYPE": "SHA-512",
         "SNMP_USER_AUTH_PASSWORD": "test_priv_RO_6_authpass",
         "SNMP_USER_ENCRYPTION_TYPE": "AES",
         "SNMP_USER_ENCRYPTION_PASSWORD": "test_priv_RO_6_encrpytpass"
@@ -975,7 +975,7 @@
     "SNMP_USER|test_priv_RO_5": {
         "SNMP_USER_TYPE": "Priv",
         "SNMP_USER_PERMISSION": "RO",
-        "SNMP_USER_AUTH_TYPE": "HMAC-SHA-2",
+        "SNMP_USER_AUTH_TYPE": "SHA-512",
         "SNMP_USER_AUTH_PASSWORD": "test_priv_RO_5_authpass",
         "SNMP_USER_ENCRYPTION_TYPE": "DES",
         "SNMP_USER_ENCRYPTION_PASSWORD": "test_priv_RO_5_encrpytpass"
@@ -1007,7 +1007,7 @@
     "SNMP_USER|test_authpriv_RW_3": {
         "SNMP_USER_TYPE": "AuthNoPriv",
         "SNMP_USER_PERMISSION": "RW",
-        "SNMP_USER_AUTH_TYPE": "HMAC-SHA-2",
+        "SNMP_USER_AUTH_TYPE": "SHA-512",
         "SNMP_USER_AUTH_PASSWORD": "test_authpriv_RW_3_authpass",
         "SNMP_USER_ENCRYPTION_TYPE": "",
         "SNMP_USER_ENCRYPTION_PASSWORD": ""
@@ -1015,7 +1015,7 @@
     "SNMP_USER|test_priv_RW_5": {
         "SNMP_USER_TYPE": "Priv",
         "SNMP_USER_PERMISSION": "RW",
-        "SNMP_USER_AUTH_TYPE": "HMAC-SHA-2",
+        "SNMP_USER_AUTH_TYPE": "SHA-512",
         "SNMP_USER_AUTH_PASSWORD": "test_priv_RW_5_authpass",
         "SNMP_USER_ENCRYPTION_TYPE": "DES",
         "SNMP_USER_ENCRYPTION_PASSWORD": "test_priv_RW_5_encrpytpass"
@@ -1023,7 +1023,7 @@
     "SNMP_USER|test_priv_RW_6": {
         "SNMP_USER_TYPE": "Priv",
         "SNMP_USER_PERMISSION": "RW",
-        "SNMP_USER_AUTH_TYPE": "HMAC-SHA-2",
+        "SNMP_USER_AUTH_TYPE": "SHA-512",
         "SNMP_USER_AUTH_PASSWORD": "test_priv_RW_6_authpass",
         "SNMP_USER_ENCRYPTION_TYPE": "AES",
         "SNMP_USER_ENCRYPTION_PASSWORD": "test_priv_RW_6_encrpytpass"
