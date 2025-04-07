@@ -51,6 +51,7 @@ SAVE_STDERR=true
 RETURN_CODE=$EXT_SUCCESS
 DEBUG_DUMP=false
 ROUTE_TAB_LIMIT_DIRECT_ITERATION=24000
+BCM_DEVICE_ID=""
 
 # lock dirs/files
 LOCKDIR="/tmp/techsupport-lock"
@@ -1361,6 +1362,28 @@ collect_marvell() {
 }
 
 ###############################################################################
+# Extract Broadcom device id
+# Globals:
+#  None
+# Arguments:
+#  None
+# Returns:
+#  None
+###############################################################################
+get_broadcom_device_id() {
+    # Grep the vendor id of broadcom and extract the device id
+    local device_id=$(cat /proc/linux-kernel-bde | grep "14e4" | cut -d ':' -f 4)
+    if [ -z ${device_id} ]; then
+        device_id=$(cat /proc/linux_ngbde | grep "14e4" | cut -d ':' -f 3)
+    else
+        # Ignore the prefix "0x" when the device id is extracted from linux-kernel-bde
+        device_id=${device_id:2}
+    fi
+
+    BCM_DEVICE_ID=${device_id}
+}
+
+###############################################################################
 # Collect Broadcom specific information
 # Globals:
 #  None
@@ -1412,14 +1435,33 @@ collect_broadcom() {
         save_file /tmp/error sai false
     fi
 
-    save_cmd "cat /proc/bcm/knet/debug" "broadcom.knet.debug"
-    save_cmd "cat /proc/bcm/knet/dma" "broadcom.knet.dma"
-    save_cmd "cat /proc/bcm/knet/link" "broadcom.knet.link"
-    save_cmd "cat /proc/bcm/knet/rate" "broadcom.knet.rate"
+    # Distinguish the broadcom device id to skip executing some unsupported commands
+    if [[ "${BCM_DEVICE_ID}" =~ ^(f902|f900|b990|b880|b993)$ ]]; then
+        save_cmd "cat /proc/linux_ngknet/debug_level" "broadcom.ngknet.debug_level"
+        save_cmd "cat /proc/linux_ngknet/device_info" "broadcom.ngknet.device_info"
+        save_cmd "cat /proc/linux_ngknet/netif_info" "broadcom.ngknet.netif_info"
+        save_cmd "cat /proc/linux_ngknet/rate_limit" "broadcom.ngknet.rate_limit"
+        save_cmd "cat /proc/linux_ngknet/reg_status" "broadcom.ngknet.reg_status"
+        save_cmd "cat /proc/linux_ngknet/ring_status" "broadcom.ngknet.ring_status"
+    else
+        save_cmd "cat /proc/bcm/knet/debug" "broadcom.knet.debug"
+        save_cmd "cat /proc/bcm/knet/dma" "broadcom.knet.dma"
+        save_cmd "cat /proc/bcm/knet/link" "broadcom.knet.link"
+        save_cmd "cat /proc/bcm/knet/rate" "broadcom.knet.rate"
+
+        save_bcmcmd_all_ns "-t5 soc" "broadcom.soc"
+        save_bcmcmd_all_ns "\"l3 ecmp egress show\"" "l3.ecmp.egress.summary"
+        save_bcmcmd_all_ns "\"d chg my_station_tcam\"" "mystation.tcam.summary"
+
+        if [[ "${BCM_DEVICE_ID}" != "b980" && "${BCM_DEVICE_ID}" != "b370" && "${BCM_DEVICE_ID}" != "b371" && "${BCM_DEVICE_ID}" != "b277" ]]; then
+            save_bcmcmd_all_ns "\"l3 nat_ingress show\"" "broadcom.nat.ingress"
+            save_bcmcmd_all_ns "\"l3 nat_egress show\"" "broadcom.nat.egress"
+        fi
+    fi
 
     save_bcmcmd_all_ns "-t5 version" "broadcom.version"
-    save_bcmcmd_all_ns "-t5 soc" "broadcom.soc"
     save_bcmcmd_all_ns "-t5 ps" "broadcom.ps"
+
     if [ -e /usr/share/sonic/device/${platform}/platform_asic ]; then
        bcm_family=`cat /usr/share/sonic/device/${platform}/platform_asic`
     else
@@ -1473,12 +1515,6 @@ collect_broadcom() {
        save_bcmcmd_all_ns "\"fabric connectivity\"" "fabric.connect.summary"
        save_bcmcmd_all_ns "\"port status\"" "port.status.summary"
     else
-        local driver_id=$(bcmcmd "soc" | grep Driver= | awk -F '=' '{print substr($4, 1, 8)}')
-        # BCM56980, BCM56370 and BCM56275 do not support NAT feature
-        if [[ ! "$driver_id" =~ ^(BCM56980|BCM56370|BCM56275)$ ]]; then
-           save_cmd "bcmcmd \"l3 nat_ingress show\"" "broadcom.nat.ingress"
-           save_cmd "bcmcmd \"l3 nat_egress show\"" "broadcom.nat.egress"
-        fi
        save_bcmcmd_all_ns "\"ipmc table show\"" "broadcom.ipmc"
        save_bcmcmd_all_ns "\"multicast show\"" "broadcom.multicast"
        save_bcmcmd_all_ns "\"conf show\"" "conf.summary"
@@ -1489,7 +1525,6 @@ collect_broadcom() {
        save_bcmcmd_all_ns "\"l3 defip show\"" "l3.defip.summary"
        save_bcmcmd_all_ns "\"l3 l3table show\"" "l3.l3table.summary"
        save_bcmcmd_all_ns "\"l3 egress show\"" "l3.egress.summary"
-       save_bcmcmd_all_ns "\"l3 ecmp egress show\"" "l3.ecmp.egress.summary"
        save_bcmcmd_all_ns "\"l3 multipath show\"" "l3.multipath.summary"
        save_bcmcmd_all_ns "\"l3 ip6host show\"" "l3.ip6host.summary"
        save_bcmcmd_all_ns "\"l3 ip6route show\"" "l3.ip6route.summary"
@@ -1498,7 +1533,6 @@ collect_broadcom() {
        save_bcmcmd_all_ns "\"mirror show\"" "mirror.summary"
        save_bcmcmd_all_ns "\"mirror dest show\"" "mirror.dest.summary"
        save_bcmcmd_all_ns "\"port *\"" "port.summary"
-       save_bcmcmd_all_ns "\"d chg my_station_tcam\"" "mystation.tcam.summary"
     fi
 
     copy_from_masic_docker "syncd" "/var/log/diagrun.log" "/var/log/diagrun.log"
@@ -1762,13 +1796,19 @@ save_counter_snapshot() {
     save_redis "COUNTERS_DB" "COUNTERS_DB_$idx"
 
     if [ "$asic_name" = "broadcom" ]; then
-        save_cmd "cat /proc/bcm/knet/dstats" "broadcom.knet_drop.counters_$idx"
-        save_cmd "cat /proc/bcm/knet/stats" "broadcom.knet_filter.counters_$idx"
+        if [[ "${BCM_DEVICE_ID}" =~ ^(f902|f900|b990|b880|b993)$ ]]; then
+            save_cmd "cat /proc/linux_ngknet/pkt_stats" "broadcom.ngknet_packet.counters_$idx"
+            save_cmd "cat /proc/linux_ngknet/filter_info" "broadcom.ngknet_filter.counters_$idx"
+        else
+            save_cmd "cat /proc/bcm/knet/dstats" "broadcom.knet_drop.counters_$idx"
+            save_cmd "cat /proc/bcm/knet/stats" "broadcom.knet_filter.counters_$idx"
+            if [ -e /proc/bcm/knet/rx_drop ]; then
+                save_cmd "cat /proc/bcm/knet/rx_drop" "broadcom.knet_queue.counters_$idx"
+            fi
+        fi
+
         if [ -e /usr/local/bin/softnet_stat.sh ]; then
             save_cmd "softnet_stat.sh" "softnet_queue.counters_$idx"
-        fi
-        if [ -e /proc/bcm/knet/rx_drop ]; then
-            save_cmd "cat /proc/bcm/knet/rx_drop" "broadcom.knet_queue.counters_$idx"
         fi
     fi
     save_cmd_all_ns "netstat -i" "netstat.counters_$idx"
@@ -1871,6 +1911,9 @@ main() {
 
     local asic="$(/usr/local/bin/sonic-cfggen -y /etc/sonic/sonic_version.yml -v asic_type)"
     local device_type=`sonic-db-cli CONFIG_DB hget 'DEVICE_METADATA|localhost' type`
+    if [ "$asic" = "broadcom" ]; then
+        get_broadcom_device_id
+    fi
     # 1st counter snapshot early. Need 2 snapshots to make sense of counters trend.
     save_counter_snapshot $asic 1
 
