@@ -22,71 +22,71 @@ IP_VERSION_PARAMS_MAP = {
 }
 
 show_vlan_brief_output="""\
-+-----------+-----------------+-----------------+----------------+-------------+
-|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   |
-+===========+=================+=================+================+=============+
-|      1000 | 192.168.0.1/21  | Ethernet4       | untagged       | disabled    |
-|           | fc02:1000::1/64 | Ethernet8       | untagged       |             |
-|           |                 | Ethernet12      | untagged       |             |
-|           |                 | Ethernet16      | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     |
-|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      3000 |                 |                 |                | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      4000 |                 | PortChannel1001 | tagged         | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   | Static Anycast Gateway   |
++===========+=================+=================+================+=============+==========================+
+|      1000 | 192.168.0.1/21  | Ethernet4       | untagged       | disabled    | enabled                  |
+|           | fc02:1000::1/64 | Ethernet8       | untagged       |             |                          |
+|           |                 | Ethernet12      | untagged       |             |                          |
+|           |                 | Ethernet16      | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     | disabled                 |
+|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      3000 |                 |                 |                | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      4000 |                 | PortChannel1001 | tagged         | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
 """
 
 show_vlan_brief_in_alias_mode_output="""\
-+-----------+-----------------+-----------------+----------------+-------------+
-|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   |
-+===========+=================+=================+================+=============+
-|      1000 | 192.168.0.1/21  | etp2            | untagged       | disabled    |
-|           | fc02:1000::1/64 | etp3            | untagged       |             |
-|           |                 | etp4            | untagged       |             |
-|           |                 | etp5            | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      2000 | 192.168.0.10/21 | etp7            | untagged       | enabled     |
-|           | fc02:1011::1/64 | etp8            | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      3000 |                 |                 |                | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      4000 |                 | PortChannel1001 | tagged         | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   | Static Anycast Gateway   |
++===========+=================+=================+================+=============+==========================+
+|      1000 | 192.168.0.1/21  | etp2            | untagged       | disabled    | enabled                  |
+|           | fc02:1000::1/64 | etp3            | untagged       |             |                          |
+|           |                 | etp4            | untagged       |             |                          |
+|           |                 | etp5            | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      2000 | 192.168.0.10/21 | etp7            | untagged       | enabled     | disabled                 |
+|           | fc02:1011::1/64 | etp8            | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      3000 |                 |                 |                | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      4000 |                 | PortChannel1001 | tagged         | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
 """
 
 show_vlan_brief_empty_output="""\
-+-----------+-----------------+-----------------+----------------+-------------+
-|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   |
-+===========+=================+=================+================+=============+
-|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     |
-|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      3000 |                 |                 |                | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      4000 |                 | PortChannel1001 | tagged         | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   | Static Anycast Gateway   |
++===========+=================+=================+================+=============+==========================+
+|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     | disabled                 |
+|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      3000 |                 |                 |                | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      4000 |                 | PortChannel1001 | tagged         | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
 """
 
 show_vlan_brief_with_portchannel_output="""\
-+-----------+-----------------+-----------------+----------------+-------------+
-|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   |
-+===========+=================+=================+================+=============+
-|      1000 | 192.168.0.1/21  | Ethernet4       | untagged       | disabled    |
-|           | fc02:1000::1/64 | Ethernet8       | untagged       |             |
-|           |                 | Ethernet12      | untagged       |             |
-|           |                 | Ethernet16      | untagged       |             |
-|           |                 | PortChannel1001 | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     |
-|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      3000 |                 |                 |                | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      4000 |                 | PortChannel1001 | tagged         | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   | Static Anycast Gateway   |
++===========+=================+=================+================+=============+==========================+
+|      1000 | 192.168.0.1/21  | Ethernet4       | untagged       | disabled    | enabled                  |
+|           | fc02:1000::1/64 | Ethernet8       | untagged       |             |                          |
+|           |                 | Ethernet12      | untagged       |             |                          |
+|           |                 | Ethernet16      | untagged       |             |                          |
+|           |                 | PortChannel1001 | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     | disabled                 |
+|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      3000 |                 |                 |                | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      4000 |                 | PortChannel1001 | tagged         | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
 """
 
 show_vlan_config_output="""\
@@ -116,43 +116,43 @@ Vlan4000   4000  PortChannel1001  tagged
 """
 
 config_add_del_vlan_and_vlan_member_output="""\
-+-----------+-----------------+-----------------+----------------+-------------+
-|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   |
-+===========+=================+=================+================+=============+
-|      1000 | 192.168.0.1/21  | Ethernet4       | untagged       | disabled    |
-|           | fc02:1000::1/64 | Ethernet8       | untagged       |             |
-|           |                 | Ethernet12      | untagged       |             |
-|           |                 | Ethernet16      | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      1001 |                 | Ethernet20      | untagged       | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     |
-|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      3000 |                 |                 |                | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      4000 |                 | PortChannel1001 | tagged         | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   | Static Anycast Gateway   |
++===========+=================+=================+================+=============+==========================+
+|      1000 | 192.168.0.1/21  | Ethernet4       | untagged       | disabled    | enabled                  |
+|           | fc02:1000::1/64 | Ethernet8       | untagged       |             |                          |
+|           |                 | Ethernet12      | untagged       |             |                          |
+|           |                 | Ethernet16      | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      1001 |                 | Ethernet20      | untagged       | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      2000 | 192.168.0.10/21 | Ethernet24      | untagged       | enabled     | disabled                 |
+|           | fc02:1011::1/64 | Ethernet28      | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      3000 |                 |                 |                | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      4000 |                 | PortChannel1001 | tagged         | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
 """
 
 config_add_del_vlan_and_vlan_member_in_alias_mode_output="""\
-+-----------+-----------------+-----------------+----------------+-------------+
-|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   |
-+===========+=================+=================+================+=============+
-|      1000 | 192.168.0.1/21  | etp2            | untagged       | disabled    |
-|           | fc02:1000::1/64 | etp3            | untagged       |             |
-|           |                 | etp4            | untagged       |             |
-|           |                 | etp5            | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      1001 |                 | etp6            | untagged       | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      2000 | 192.168.0.10/21 | etp7            | untagged       | enabled     |
-|           | fc02:1011::1/64 | etp8            | untagged       |             |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      3000 |                 |                 |                | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
-|      4000 |                 | PortChannel1001 | tagged         | disabled    |
-+-----------+-----------------+-----------------+----------------+-------------+
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|   VLAN ID | IP Address      | Ports           | Port Tagging   | Proxy ARP   | Static Anycast Gateway   |
++===========+=================+=================+================+=============+==========================+
+|      1000 | 192.168.0.1/21  | etp2            | untagged       | disabled    | enabled                  |
+|           | fc02:1000::1/64 | etp3            | untagged       |             |                          |
+|           |                 | etp4            | untagged       |             |                          |
+|           |                 | etp5            | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      1001 |                 | etp6            | untagged       | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      2000 | 192.168.0.10/21 | etp7            | untagged       | enabled     | disabled                 |
+|           | fc02:1011::1/64 | etp8            | untagged       |             |                          |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      3000 |                 |                 |                | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
+|      4000 |                 | PortChannel1001 | tagged         | disabled    | disabled                 |
++-----------+-----------------+-----------------+----------------+-------------+--------------------------+
 """
 
 
@@ -388,7 +388,7 @@ class TestVlan(object):
         with mock.patch("config.vlan.delete_db_entry") as delete_db_entry:
             vlan_member = db.cfgdb.get_table('VLAN_MEMBER')
             keys = [ (k, v) for k, v in vlan_member if k == 'Vlan{}'.format(1000) ]
-            for k,v in keys:    
+            for k,v in keys:
                 result = runner.invoke(config.config.commands["vlan"].commands["member"].commands["del"], ["1000", v], obj=db)
                 print(result.exit_code)
                 print(result.output)
@@ -588,8 +588,8 @@ class TestVlan(object):
                               mock.call(['docker', 'exec', '-i', 'swss', 'supervisorctl', 'restart', 'ndppd'], return_cmd=True)]
             mock_run_command.assert_has_calls(expected_calls)
 
-            assert result.exit_code == 0 
-            assert db.cfgdb.get_entry("VLAN_INTERFACE", "Vlan1000") == {"proxy_arp": "enabled"}
+            assert result.exit_code == 0
+            assert db.cfgdb.get_entry("VLAN_INTERFACE", "Vlan1000") == {"proxy_arp": "enabled", "static_anycast_gateway": "true"}
 
     def test_config_vlan_proxy_arp_disable(self):
         runner = CliRunner()
@@ -602,35 +602,35 @@ class TestVlan(object):
 
         assert result.exit_code == 0
         assert db.cfgdb.get_entry("VLAN_INTERFACE", "Vlan2000") == {"proxy_arp": "disabled"}
-        
+
     def test_config_2_untagged_vlan_on_same_interface(self):
         runner = CliRunner()
         db = Db()
-        
+
         # add Ethernet4 to vlan 2000 as untagged - should fail as ethrnet4 is already untagged member in 1000
         result = runner.invoke(config.config.commands["vlan"].commands["member"].commands["add"],
                 ["2000", "Ethernet4", "--untagged"], obj=db)
         print(result.exit_code)
         assert result.exit_code != 0
-        
+
         # add Ethernet4 to vlan 2000 as tagged - should succeed
         result = runner.invoke(config.config.commands["vlan"].commands["member"].commands["add"],
                 ["2000", "Ethernet4" ], obj=db)
         print(result.exit_code)
         assert result.exit_code == 0
-        
-    def test_config_set_router_port_on_member_interface(self):        
+
+    def test_config_set_router_port_on_member_interface(self):
         db = Db()
         runner = CliRunner()
         obj = {'config_db':db.cfgdb}
-        
+
         # intf enable
         result = runner.invoke(config.config.commands["interface"].commands["ip"].commands["add"],
-                               ["Ethernet4", "10.10.10.1/24"], obj=obj)        
+                               ["Ethernet4", "10.10.10.1/24"], obj=obj)      
         print(result.exit_code, result.output)
         assert result.exit_code == 0
         assert 'Interface Ethernet4 is a member of vlan' in result.output
-        
+
     def test_config_vlan_add_member_of_portchannel(self):
         runner = CliRunner()
         db = Db()
