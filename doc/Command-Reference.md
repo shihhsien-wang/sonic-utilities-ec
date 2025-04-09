@@ -109,6 +109,9 @@
 * [Management VRF](#Management-VRF)
   * [Management VRF Show commands](#management-vrf-show-commands)
   * [Management VRF Config commands](#management-vrf-config-commands)
+* [MCLAG](#mclag)
+  * [MCLAG Show commands](#mclag-show-commands)
+  * [MCLAG Config commands](#mclag-config-commands)
 * [Mirroring](#mirroring)
   * [Mirroring Show commands](#mirroring-show-commands)
   * [Mirroring Config commands](#mirroring-config-commands)
@@ -372,6 +375,7 @@ This command lists all the possible configuration commands at the top level.
     load_mgmt_config       Reconfigure hostname and mgmt interface based...
     load_minigraph         Reconfigure based on minigraph.
     loopback               Loopback-related configuration tasks.
+    mclag
     mirror_session
     nat                    NAT-related configuration tasks
     platform               Platform-related configuration tasks
@@ -425,6 +429,8 @@ This command displays the full list of show commands available in the software; 
     lldp                  Show LLDP information
     logging               Show system log
     mac                   Show MAC (FDB) entries
+    mclag                 Show MCLAG related information
+    mgmt-vrf              Show management VRF attributes
     mirror_session        Show existing everflow sessions
     mmu                   Show mmu configuration
     muxcable              Show muxcable information
@@ -7928,6 +7934,148 @@ While configuring the muxcable, users needs to configure the following fields fo
     ```
 
 Go Back To [Beginning of the document](#) or [Beginning of this section](#muxcable)
+
+## MCLAG
+
+### MCLAG Show commands
+
+**show mclag brief**
+
+This command displays brief information about MCLAG domain.
+- Usage:
+  ```
+  show mclag brief
+  ```
+- Example:
+  ```
+  admin@sonic:~$ show mclag brief
+    Domain ID                   : 5
+    Role                        : Active
+    Session Status              : Up
+    Peer Link Status            : Up
+    Source Address              : 192.168.1.1
+    Peer Address                : 192.168.1.2
+    Peer Link                   : PortChannel30
+    System MAC                  : b8:6a:97:73:6c:96
+    Number of MCLAG Interfaces  : 2
+    MCLAG Interface             Local/Remote Status
+    PortChannel50               Up/Up
+    PortChannel60               Up/Up
+  ```
+**show mclag interface**
+
+This command displays interface information in a MCLAG domain.
+- Usage:
+  ```
+  show mclag interface <domain-id> <portchannel-name>
+  ```
+- Example:
+  ```
+  admin@sonic:~$ show mclag interface 5 PortChannel50
+       Local/Remote Status           : Up/Up
+       IsolateWithPeerLink            : Yes
+  ```
+**show mclag unique ip**
+
+This command displays unique ip status.
+- Usage:
+  ```
+  show mclag unique-ip
+  ```
+- Example:
+  ```
+  admin@sonic:~$ show mclag unique-ip
+       Unique IP:           : Vlan200, Vlan300
+  ```
+### MCLAG Config commands
+**config mclag add/del**
+
+Use this command to configure MCLAG domain attributes.
+- Usage:
+  ```
+  config mclag {add | del} <domain-id> <local-ip-addr> <peer-ip-addr> [<peer-ifname>]
+  ```
+- Description
+  - **domain-id** - MCLAG node's unique domain-id
+  - **local-ip-addr** - MCLAG node's local ipv4 address
+  - **peer-ip-addr** - MCLAG node's peer ipv4 address
+  - **peer-ifname** - MCLAG peer interface name; optional for L3 MCLAG, mandatory for L2 MCLAG config
+- Example:
+  ```
+  admin@sonic:~$ sudo config mclag add 5 192.168.1.1 192.168.1.2 PortChannel30
+  ```
+**config mclag member add/del**
+
+Use this command to configure domain's MCLAG interfaces.
+- Usage:
+  ```
+  config mclag member {add | del} <domain-id> <portchannel-name>
+  ```
+- Description
+  - MCLAG interfaces can be only portchannel
+- Example:
+  ```
+  admin@sonic:~$ sudo config mclag member add 5 PortChannel50
+  ```
+**config mclag unique-ip add/del**
+
+Use this command to configure unique status on VLANs.
+- Usage:
+  ```
+  config mclag unique-ip {add | del} <Vlan-interface>
+  ```
+- Description
+  - **Vlan-interface** - VLAN interface for which unique IP can be configured.
+- Example:
+  ```
+  admin@sonic:~$ sudo config mclag unique-ip add Vlan200
+  ```
+**config mclag keepalive-interval**
+
+Use this command to configure keep-alive timer.
+- Usage:
+  ```
+  config mclag keepalive-interval <domain-id> <keepalive-timer-val>
+  ```
+- Description
+  - **keepalive-timer-val** - keepalive-timer in the range of 1 to 60 seconds with default value of 1 seconds.
+  - session-timeout should be at least greater than 3 times keepalive-timer value.
+- Example:
+  ```
+  admin@sonic:~$ sudo config mclag keepalive-interval 5 5
+  ```
+**config mclag session-timeout**
+
+Use this command to configure session timeout.
+- Usage:
+  ```
+  config mclag session-timeout <domain_id> <time_in_secs>
+  ```
+- Description
+  - **time_in_secs** - session-timeout in the range of 3 to 3600 seconds with default value of 15 seconds.
+  - session-timeout should be at least greater than 3 times keepalive-timer value.
+- Example:
+  ```
+  admin@sonic:~$ sudo config mclag session-timeout 5 20
+  ```
+**config mclag system-mac add/del**
+
+Use this command to configure system MAC.
+Configure it to ensure that the MAC of MCLAG member on standby DUT cannot be changed during rebooting active DUT, preventing traffic broken temporally. 
+Note: Ensure that the active and standby have the same MAC address.  Suggest to configure the active MAC as the system MAC on the standby DUT.
+- Usage:
+  ```
+  config mclag system-mac {add | del} <domain-id> [<system-mac>]
+  ```
+- Description
+  - **system-mac** - A MAC for MCLAG. Need to configure it for active and standby node.
+- Example:
+  ```
+  admin@sonic:~$ sudo config mclag system-mac add 5 00:11:22:33:44:55
+  admin@sonic:~$ sudo config mclag system-mac del 5
+  ```
+
+Go Back To [Beginning of the document](#) or [Beginning of this section](#mclag)
 
 ## Mirroring
 
