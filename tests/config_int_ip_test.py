@@ -132,7 +132,7 @@ class TestIntIp(object):
             assert mock_run_command.call_count == 1
             # removing IP should only remove the INTERFACE,IP key. The regular INTERFACE key should still exists for sub interface
             assert ('Ethernet16.16', '16.1.1.1/16') not in db.cfgdb.get_table('VLAN_SUB_INTERFACE')
-            # assert 'Ethernet16.16' in db.cfgdb.get_table('VLAN_SUB_INTERFACE') ## NOTE: currently the interface will be reomve after the last IP is removed.
+            # assert 'Ethernet16.16' in db.cfgdb.get_table('VLAN_SUB_INTERFACE') ## NOTE: currently the interface will be reomved after the last IP is removed.
 
 
 class TestIntIpMultiasic(object):
