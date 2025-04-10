@@ -2478,17 +2478,25 @@ def mirror_session():
 # 'add' subgroup ('config mirror_session add ...')
 #
 
-@mirror_session.command('add')
+@mirror_session.command('add', short_help='Add ERSPAN mirror session.(Legacy support)')
 @click.argument('session_name', metavar='<session_name>', required=True)
 @click.argument('src_ip', metavar='<src_ip>', callback=validate_ipv4_address, required=True)
 @click.argument('dst_ip', metavar='<dst_ip>', callback=validate_ipv4_address, required=True)
 @click.argument('dscp', metavar='<dscp>', type=DSCP_RANGE, required=True)
 @click.argument('ttl', metavar='<ttl>', type=TTL_RANGE, required=True)
-@click.argument('gre_type', metavar='[gre_type]', callback=validate_gre_type, required=False)
+@click.argument('gre_type', metavar='[gre_type]', required=False, default='0x88be')
 @click.argument('queue', metavar='[queue]', type=QUEUE_RANGE, required=False)
 @click.option('--policer')
 def add(session_name, src_ip, dst_ip, dscp, ttl, gre_type, queue, policer):
-    """ Add ERSPAN mirror session.(Legacy support) """
+    """ Add ERSPAN mirror session.(Legacy support)
+
+        \b
+        [gre_type]: GRE type in a GRE tunnel packet. The default value is 0x88be. Valid values are:
+        - 0x88be: ERSPAN Type I.
+        - 0x22eb: ERSPAN Type III (Only support on Intel devices).
+        \b
+        [queue]: The default value is 0. Only support to change the value on Intel devices. Valid values are 0..7.
+    """
     add_erspan(session_name, src_ip, dst_ip, dscp, ttl, gre_type, queue, policer)
 
 @mirror_session.group(cls=clicommon.AbbreviationGroup, name='erspan')
@@ -2502,29 +2510,37 @@ def erspan(ctx):
 # 'add' subcommand
 #
 
-@erspan.command('add')
+@erspan.command('add', short_help='Add ERSPAN mirror session')
 @click.argument('session_name', metavar='<session_name>', required=True)
 @click.argument('src_ip', metavar='<src_ip>', callback=validate_ipv4_address, required=True)
 @click.argument('dst_ip', metavar='<dst_ip>', callback=validate_ipv4_address,required=True)
 @click.argument('dscp', metavar='<dscp>', type=DSCP_RANGE, required=True)
 @click.argument('ttl', metavar='<ttl>', type=TTL_RANGE, required=True)
-@click.argument('gre_type', metavar='[gre_type]', callback=validate_gre_type, required=False)
+@click.argument('gre_type', metavar='[gre_type]', required=False, default='0x88be')
 @click.argument('queue', metavar='[queue]', type=QUEUE_RANGE, required=False)
 @click.argument('src_port', metavar='[src_port]', required=False)
 @click.argument('direction', metavar='[direction]', required=False)
 @click.option('--policer')
 def add(session_name, src_ip, dst_ip, dscp, ttl, gre_type, queue, policer, src_port, direction):
-    """ Add ERSPAN mirror session """
+    """ Add ERSPAN mirror session
+
+        \b
+        [gre_type]: GRE type in a GRE tunnel packet. The default value is 0x88be. Valid values are:
+        - 0x88be: ERSPAN Type I.
+        - 0x22eb: ERSPAN Type III (Only support on Intel devices).
+        \b
+        [queue]: The default value is 0. Only support to change the value on Intel devices. Valid values are 0..7.
+    """
     add_erspan(session_name, src_ip, dst_ip, dscp, ttl, gre_type, queue, policer, src_port, direction)
 
 def gather_session_info(session_info, policer, queue, src_port, direction):
-    if policer:
+    if policer != None:
         session_info['policer'] = policer
 
-    if queue is not None:
+    if queue != None:
         session_info['queue'] = queue
 
-    if src_port:
+    if src_port != None:
         if clicommon.get_interface_naming_mode() == "alias":
             src_port_list = []
             for port in src_port.split(","):
@@ -2547,8 +2563,24 @@ def add_erspan(session_name, src_ip, dst_ip, dscp, ttl, gre_type, queue, policer
             "ttl": ttl
             }
 
-    if gre_type is not None:
-        session_info['gre_type'] = gre_type
+    asic_type = device_info.get_sonic_version_info().get('asic_type', '')
+
+    if (queue != None and queue != 0) and asic_type == 'broadcom':
+        raise click.BadParameter('Only Intel devices is supported to specify the queue.')
+
+    if gre_type != None:
+        try:
+            gre_type = int(gre_type, 0)
+        except:
+            raise click.BadParameter('Wrong gre type format.')
+
+        if asic_type == 'barefoot' and gre_type not in [35006, 8939]:
+            raise click.BadParameter('Only gre type 0x88be and 0x22eb are supported.')
+
+        if asic_type == 'broadcom' and gre_type != 35006:
+            raise click.BadParameter('Only gre type 0x88be and is supported.')
+
+        session_info['gre_type'] = str(gre_type)
 
     session_info = gather_session_info(session_info, policer, queue, src_port, direction)
     ctx = click.get_current_context()
@@ -2587,7 +2619,7 @@ def span(ctx):
     """ SPAN mirror session """
     pass
 
-@span.command('add')
+@span.command('add', short_help='Add SPAN mirror session')
 @click.argument('session_name', metavar='<session_name>', required=True)
 @click.argument('dst_port', metavar='<dst_port>', required=True)
 @click.argument('src_port', metavar='[src_port]', required=False)
@@ -2595,7 +2627,11 @@ def span(ctx):
 @click.argument('queue', metavar='[queue]', type=QUEUE_RANGE, required=False)
 @click.option('--policer')
 def add(session_name, dst_port, src_port, direction, queue, policer):
-    """ Add SPAN mirror session """
+    """ Add SPAN mirror session
+
+        \b
+        [queue]: The default value is 0. Only support to change the value on Intel devices. Valid values are 0..7.
+    """
     add_span(session_name, dst_port, src_port, direction, queue, policer)
 
 def add_span(session_name, dst_port, src_port, direction, queue, policer):
@@ -2609,6 +2645,11 @@ def add_span(session_name, dst_port, src_port, direction, queue, policer):
             "type" : "SPAN",
             "dst_port": dst_port,
             }
+
+    asic_type = device_info.get_sonic_version_info().get('asic_type', '')
+
+    if (queue != None and queue != 0) and asic_type == 'broadcom':
+        raise click.BadParameter('Only Intel devices is supported to specify the queue.')
 
     session_info = gather_session_info(session_info, policer, queue, src_port, direction)
     ctx = click.get_current_context()
