@@ -79,22 +79,28 @@ def isIpOverlappingWithAnyStaticEntry(ipAddress, table):
                 global_ip = key[0]
             else:
                 continue
+
+            local_ip = values["local_ip"]
+
+            if "nat_type" in values:
+                nat_type = values["nat_type"]
+
+            if nat_type == "snat":
+                global_ip = local_ip
+
+            if global_ip == ipAddress:
+                return True
+
         elif table == 'STATIC_NAT':
             if isinstance(key, str) is True:
                 global_ip = key
+                local_ip = values["local_ip"]
             else:
                 continue
 
-        local_ip = values["local_ip"]
-
-        if "nat_type" in values:
-            nat_type = values["nat_type"]
-
-        if nat_type == "snat":
-            global_ip = local_ip
-
-        if global_ip == ipAddress:
-            return True
+            if (global_ip == ipAddress or
+                local_ip == ipAddress):
+                return True
 
     return False
 
@@ -275,6 +281,10 @@ def add_basic(ctx, global_ip, local_ip, nat_type, twice_nat_id):
         ipAddress = local_ip
     else:
         ipAddress = global_ip
+
+    if (isIpOverlappingWithAnyStaticEntry(local_ip, 'STATIC_NAT') == True or
+        isIpOverlappingWithAnyStaticEntry(global_ip, 'STATIC_NAT') == True):
+        ctx.fail("Given entry is overlapping with existing NAT entry !!")
 
     if isIpOverlappingWithAnyStaticEntry(ipAddress, 'STATIC_NAPT') is True:
         ctx.fail("Given entry is overlapping with existing NAPT entry !!")
@@ -944,7 +954,7 @@ def remove_binding(ctx, binding_name):
 def remove_bindings(ctx):
     """Remove all Bindings for Dynamic configutation"""
 
-    config_db = ValidatedConfigBConnector(ConfigDBConnector())
+    config_db = ValidatedConfigDBConnector(ConfigDBConnector())
     config_db.connect()
 
     binding_table_name = 'NAT_BINDINGS'
