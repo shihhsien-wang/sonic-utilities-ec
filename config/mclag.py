@@ -380,6 +380,8 @@ def add_mclag_unique_ip(ctx, interface_names):
 
         #IP should be configured after unique IP configuration
         for k,v in db.get_table('VLAN_INTERFACE').items():
+            if k == interface_name and v.get('static_anycast_gateway') == 'true':
+                ctx.fail("Static-anycast-gateway is enabled. Remove it first.")
             if type(k) == tuple:
                 (intf_name, ip) = k
                 if intf_name == interface_name and ip != 0:

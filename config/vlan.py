@@ -365,6 +365,10 @@ def enable_vlan_sag(db, vid):
     if current_entry.get("static_anycast_gateway") == "true":
         ctx.fail(f"static-anycast-gateway is already enabled")
 
+    for k,v in db.cfgdb.get_table('MCLAG_UNIQUE_IP').items():
+        if k == vlan and v.get('unique_ip') == 'enable':
+            ctx.fail("MCLAG unique-ip is enabled. Remove it first.")
+
     db.cfgdb.mod_entry('VLAN_INTERFACE', vlan, {"static_anycast_gateway": "true"})
 
 
