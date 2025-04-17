@@ -6678,6 +6678,109 @@ def is_loopback_name_valid(loopback_name):
     return True
 
 #
+# 'arp' subgroup ('config interface arp ...')
+#
+
+@interface.group(cls=clicommon.AbbreviationGroup)
+@click.pass_context
+def arp(ctx):
+    """Set arp attributes"""
+    pass
+
+#
+# 'interface arp accept' subcommand
+#
+@arp.command('accept')
+@click.pass_context
+@click.argument('interface_name', metavar='<interface_name>', required=True)
+@click.argument('mode', metavar='<mode>', required=True, type=click.Choice(["enabled", "disabled"]))
+def config_grat_arp(ctx, interface_name, mode):
+    """Configure arp accept to support gratuitous arp or arp reply in first received situation"""
+
+    config_db = ConfigDBConnector()
+    config_db.connect()
+    ctx.obj = {}
+    ctx.obj['config_db'] = config_db
+    db = ctx.obj["config_db"]
+
+    if clicommon.get_interface_naming_mode() == "alias":
+        interface_name = interface_alias_to_name(db, interface_name)
+        if interface_name is None:
+            ctx.fail("'interface_name' is None!")
+
+    if interface_name.startswith("Ethernet"):
+        interface_type = "INTERFACE"
+    elif interface_name.startswith("PortChannel"):
+        interface_type = "PORTCHANNEL_INTERFACE"
+    elif interface_name.startswith("Vlan"):
+        interface_type = "VLAN_INTERFACE"
+    else:
+        ctx.fail("'interface_name' is not valid. Valid names [Ethernet/PortChannel/Vlan]")
+
+    if (interface_type == "INTERFACE" ) or (interface_type == "PORTCHANNEL_INTERFACE"):
+        if interface_name_is_valid(db, interface_name) is False:
+            ctx.fail("Interface name %s is invalid. Please enter a valid interface name!!" %(interface_name))
+
+    if (interface_type == "VLAN_INTERFACE"):
+        if not clicommon.check_if_vlanid_exist(db, interface_name):
+            ctx.fail("Interface name %s is invalid. Please enter a valid interface name!!" %(interface_name))
+
+    portchannel_member_table = db.get_table('PORTCHANNEL_MEMBER')
+
+    if interface_is_in_portchannel(portchannel_member_table, interface_name):
+        ctx.fail("{} is configured as a member of portchannel. Cannot configure the gratuitous arp!"
+                .format(interface_name))
+
+    vlan_member_table = db.get_table('VLAN_MEMBER')
+
+    if interface_is_in_vlan(vlan_member_table, interface_name):
+        ctx.fail("{} is configured as a member of vlan. Cannot configure the gratuitous arp!"
+                .format(interface_name))
+
+    interface_dict = db.get_table(interface_type)
+    set_grat_arp_on_interface(db, interface_dict, interface_type, interface_name, mode)
+
+#
+# set grat_arp on interface
+#
+def set_grat_arp_on_interface(config_db, interface_dict, interface_type, interface_name, mode):
+
+    curr_mode = config_db.get_entry(interface_type, interface_name).get('grat_arp')
+    # If the key “grat_arp” is the same as the current value to be set, there is no need to set it again.
+    # If the key “grat_arp” is empty and the current value to be set is “disabled,” there is also no need to set it, as the function is not being executed anyway.
+    if curr_mode is not None:
+        if curr_mode == mode:
+            return
+    else:
+        if mode == "disabled":
+            return
+
+    if mode == "enabled":
+        config_db.mod_entry(interface_type, interface_name, {"grat_arp": mode})
+        return
+
+    # If we are disabling the arp accept on an interface, and if no other interface
+    # attributes/ip addresses are configured on the interface, delete the interface from the interface table
+    exists = False
+    for key in interface_dict.keys():
+        if not isinstance(key, tuple):
+            if interface_name == key:
+                #Interface bound to non-default-vrf do not delete the entry
+                if 'vrf_name' in interface_dict[key]:
+                    if len(interface_dict[key]['vrf_name']) > 0:
+                        exists = True
+                        break
+            continue
+        if interface_name in key:
+            exists = True
+            break
+
+    if exists:
+        config_db.mod_entry(interface_type, interface_name, {"grat_arp": mode})
+    else:
+        config_db.set_entry(interface_type, interface_name, None)
+
+#
 # 'loopback' group ('config loopback ...')
 #
 @config.group()
