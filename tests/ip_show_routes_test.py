@@ -84,6 +84,20 @@ class TestShowIpRouteCommands(object):
         assert result.output == show_ip_route_common.show_special_ip_route_expected_output
 
     @pytest.mark.parametrize('setup_single_bgp_instance',
+                             ['ip_route_empty'], indirect=['setup_single_bgp_instance'])
+    def test_show_ip_route_json_empty(
+            self,
+            setup_ip_route_commands,
+            setup_single_bgp_instance):
+        show = setup_ip_route_commands
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["ip"].commands["route"], ["json"])
+        print("{}".format(result.output))
+        assert result.exit_code == 0
+        assert result.output == show_ip_route_common.show_empty_ip_route_json_expected_output
+
+    @pytest.mark.parametrize('setup_single_bgp_instance',
                              ['ipv6_specific_route'], indirect=['setup_single_bgp_instance'])
     def test_show_specific_ipv6_route_json(
             self,

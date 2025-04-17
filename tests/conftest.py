@@ -170,6 +170,12 @@ def setup_single_bgp_instance(request):
     if request.param == 'v4':
         bgp_mocked_json = os.path.join(
             test_path, 'mock_tables', 'ipv4_bgp_summary.json')
+    elif request.param == 'alias_v4':
+        bgp_mocked_json = os.path.join(
+            test_path, 'mock_tables', 'ipv4_bgp_summary_alias.json')
+    elif request.param == 'alias_v6':
+        bgp_mocked_json = os.path.join(
+            test_path, 'mock_tables', 'ipv6_bgp_summary_alias.json')
     elif request.param == 'v6':
         bgp_mocked_json = os.path.join(
             test_path, 'mock_tables', 'ipv6_bgp_summary.json')
@@ -183,14 +189,16 @@ def setup_single_bgp_instance(request):
             test_path, 'mock_tables', 'show_run_bgp.txt')
     elif request.param == 'ip_route':
         bgp_mocked_json = 'ip_route.json'
-    elif request.param == 'ip_specific_route': 
-        bgp_mocked_json = 'ip_specific_route.json'    
+    elif request.param == 'ip_route_empty':
+        bgp_mocked_json = 'ip_route_empty.json'
+    elif request.param == 'ip_specific_route':
+        bgp_mocked_json = 'ip_specific_route.json'  
     elif request.param == 'ipv6_specific_route':
         bgp_mocked_json = 'ipv6_specific_route.json'
     elif request.param == 'ipv6_route':
         bgp_mocked_json = 'ipv6_route.json'
     elif request.param == 'ip_special_route':
-        bgp_mocked_json = 'ip_special_route.json'    
+        bgp_mocked_json = 'ip_special_route.json'
     else:
         bgp_mocked_json = os.path.join(
             test_path, 'mock_tables', 'dummy.json')

@@ -196,7 +196,7 @@ def run_bgp_command(vtysh_cmd, bgp_namespace=multi_asic.DEFAULT_NAMESPACE, vtysh
 
     cmd = ['sudo', vtysh_shell_cmd] + bgp_instance_id + ['-c', vtysh_cmd]
     try:
-        output, ret = clicommon.run_command(cmd, return_cmd=True)
+        output, ret = clicommon.run_command(cmd, return_cmd=True, force_none_alias=True)
         if ret != 0:
             click.echo(output.rstrip('\n'))
             sys.exit(ret)
@@ -206,27 +206,113 @@ def run_bgp_command(vtysh_cmd, bgp_namespace=multi_asic.DEFAULT_NAMESPACE, vtysh
 
     return output
 
+def parse_vrf_list(vtysh_output):
+    '''
+admin@sonic:~$ vtysh -c "show vrf"
+vrf Vrf1 id 323 table 501 (configured)
+vrf mgmt id 315 table 5000
+    '''
+    vrf_list = ["default"]
+    for line in vtysh_output.split("\n"):
+        m = re.match(u'vrf ([\w-]*).*', line)
+        if m:
+            vrf_list.append(m.group(1))
+    #ensure show ip route vrf ordering
+    vrf_list.sort()
+    return vrf_list
+
+def get_route_summary(vtysh_output):
+    return vtysh_output
+
+def get_alias_route_converter(vtysh_output):
+    iface_alias_converter = clicommon.InterfaceAliasConverter()
+    route_info =json.loads(vtysh_output)
+    for route, info in route_info.items():
+        for i in range(0, len(info)):
+            if 'nexthops' in info[i]:
+                for j in range(0, len(info[i]['nexthops'])):
+                    intf_name = ""
+                    if 'interfaceName' in info[i]['nexthops'][j]:
+                        intf_name  = info[i]['nexthops'][j]['interfaceName']
+                        alias = iface_alias_converter.name_to_alias(intf_name)
+                        if alias is not None:
+                            info[i]['nexthops'][j]['interfaceName'] = alias
+    output= json.dumps(route_info)
+    return output
+
+def get_alias_ipv4_summary_converter(vtysh_output):
+    iface_alias_converter = clicommon.InterfaceAliasConverter()
+    cmd_json_output =json.loads(vtysh_output)
+    key = 'ipv4Unicast'
+    if cmd_json_output:
+        for iface_name in list(cmd_json_output[key]['peers'].keys()):
+            port_alias = iface_alias_converter.name_to_alias(iface_name)
+            if port_alias is not None:
+                cmd_json_output[key]['peers'][port_alias] = cmd_json_output[key]['peers'].pop(iface_name)
+    return json.dumps(cmd_json_output)
+
+def get_alias_ipv6_summary_converter(vtysh_output):
+    iface_alias_converter = clicommon.InterfaceAliasConverter()
+    cmd_json_output =json.loads(vtysh_output)
+    key = 'ipv6Unicast'
+    if cmd_json_output:
+        for iface_name in list(cmd_json_output[key]['peers'].keys()):
+            port_alias = iface_alias_converter.name_to_alias(iface_name)
+            if port_alias is not None:
+                cmd_json_output[key]['peers'][port_alias] = cmd_json_output[key]['peers'].pop(iface_name)
+    return json.dumps(cmd_json_output)
+
+def get_alias_neighbor_converter(vtysh_output):
+    iface_alias_converter = clicommon.InterfaceAliasConverter()
+    output = ""
+    for vtysh_line in vtysh_output.split("\n"):
+        m = re.match(r'^BGP neighbor on (Ethernet[0-9]*):', vtysh_line)
+
+        if m:
+            iface_name = m[1]
+            port_alias = iface_alias_converter.name_to_alias(iface_name)
+            output += vtysh_line.replace(iface_name, port_alias) + "\n"
+        else:
+            output += vtysh_line + "\n"
+    return output
+
+vtysh_alias_dict = {
+    "show (ip|ipv6) route .* summary": get_route_summary,
+    "show (ip|ipv6) route": get_alias_route_converter,
+    "show ip bgp summary": get_alias_ipv4_summary_converter,
+    "show bgp ipv6 summary": get_alias_ipv6_summary_converter,
+    "show ip bgp (neigh|neighbor)": get_alias_neighbor_converter
+}
+
+def is_vtysh_cmd(vtysh_cmd):
+    return any(re.search(cmd_key, vtysh_cmd) for cmd_key in vtysh_alias_dict)
+
+
+def get_vtysh_alias_converter(vtysh_output, vtysh_cmd):
+    for cmd_key, vtysh_alias_fun in vtysh_alias_dict.items():
+        if re.search(cmd_key, vtysh_cmd):
+            return vtysh_alias_fun(vtysh_output)
+    return vtysh_output
 
 def run_bgp_show_command(vtysh_cmd, bgp_namespace=multi_asic.DEFAULT_NAMESPACE):
     output = run_bgp_command(vtysh_cmd, bgp_namespace, constants.RVTYSH_COMMAND)
     # handle the the alias mode in the following code
+    if output == '':
+        return ''
+
+    if output[0] == "%":
+        return output
+
     if output is not None:
-        if clicommon.get_interface_naming_mode() == "alias" and re.search("show ip|ipv6 route", vtysh_cmd):
-            iface_alias_converter = clicommon.InterfaceAliasConverter()
-            route_info =json.loads(output)
-            for route, info in route_info.items():
-                for i in range(0, len(info)):
-                    if 'nexthops' in info[i]:
-                        for j in range(0, len(info[i]['nexthops'])):
-                            intf_name = ""
-                            if 'interfaceName' in info[i]['nexthops'][j]:
-                                intf_name  = info[i]['nexthops'][j]['interfaceName']
-                                alias = iface_alias_converter.name_to_alias(intf_name)
-                                if alias is not None:
-                                    info[i]['nexthops'][j]['interfaceName'] = alias
-            output= json.dumps(route_info)
+        if clicommon.get_interface_naming_mode() == "alias":
+            output = get_vtysh_alias_converter(output, vtysh_cmd)
     return output
 
+def get_vrf_list(bgp_namespace=multi_asic.DEFAULT_NAMESPACE):
+    vtysh_cmd = "show vrf"
+    output = run_bgp_command(vtysh_cmd, bgp_namespace, constants.RVTYSH_COMMAND)
+    vrf_list = parse_vrf_list(output)
+    return vrf_list
 
 def get_bgp_summary_from_all_bgp_instances(af, namespace, display):
 

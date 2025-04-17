@@ -1080,6 +1080,8 @@ def ip():
 def interfaces(ctx, namespace, display):
     if ctx.invoked_subcommand is None:
         cmd = ['sudo', 'ipintutil', '-a', 'ipv4']
+        if os.environ.get("UTILITIES_UNIT_TESTING", "0") == "2":
+            cmd = ['ipintutil', '-a', 'ipv4']
         if namespace is not None:
             cmd += ['-n', str(namespace)]
 
@@ -1205,7 +1207,8 @@ def prefix_list(prefix_list_name, verbose):
 @multi_asic_util.multi_asic_click_options
 def interfaces(namespace, display):
     cmd = ['sudo', 'ipintutil', '-a', 'ipv6']
-
+    if os.environ.get("UTILITIES_UNIT_TESTING", "0") == "2":
+        cmd = ['ipintutil', '-a', 'ipv6']
     if namespace is not None:
         cmd += ['-n', str(namespace)]
 

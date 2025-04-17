@@ -18,6 +18,17 @@ Ethernet0                  20.1.1.1/24          error/down    T2-Peer         20
 PortChannel0001            30.1.1.1/24          error/down    T0-Peer         30.1.1.5
 Vlan100                    40.1.1.1/24          error/down    N/A             N/A"""
 
+show_ipv4_intf_with_multple_ips_alias = """\
+Interface        Master    IPv4 address/mask    Admin/Oper    BGP Neighbor    Neighbor IP
+---------------  --------  -------------------  ------------  --------------  -------------
+etp1                       20.1.1.1/24          error/down    T2-Peer         20.1.1.5
+                           21.1.1.1/24                        N/A             N/A
+PortChannel0001            30.1.1.1/24          error/down    T0-Peer         30.1.1.5
+Vlan100                    40.1.1.1/24          error/down    N/A             N/A
+eth0                       10.1.1.1/24          up/up         N/A             N/A
+lo                         127.0.0.1/8          up/up         N/A             N/A
+"""
+
 show_ipv6_intf_with_multiple_ips = """\
 Interface        Master    IPv6 address/mask                             Admin/Oper    BGP Neighbor    Neighbor IP
 ---------------  --------  --------------------------------------------  ------------  --------------  -------------
@@ -28,6 +39,20 @@ PortChannel0001            ab00::1/64                                    error/d
                            fe80::cc8d:60ff:fe08:139f%PortChannel0001/64                N/A             N/A
 Vlan100                    cc00::1/64                                    error/down    N/A             N/A
                            fe80::c029:3fff:fe41:cf56%Vlan100/64                        N/A             N/A"""
+
+show_ipv6_intf_with_multiple_ips_alias = """\
+Interface        Master    IPv6 address/mask                             Admin/Oper    BGP Neighbor    Neighbor IP
+---------------  --------  --------------------------------------------  ------------  --------------  -------------
+etp1                       2100::1/64                                    error/down    N/A             N/A
+                           aa00::1/64                                                  N/A             N/A
+                           fe80::64be:a1ff:fe85:c6c4%Ethernet0/64                      N/A             N/A
+PortChannel0001            ab00::1/64                                    error/down    N/A             N/A
+                           fe80::cc8d:60ff:fe08:139f%PortChannel0001/64                N/A             N/A
+Vlan100                    cc00::1/64                                    error/down    N/A             N/A
+                           fe80::c029:3fff:fe41:cf56%Vlan100/64                        N/A             N/A
+eth0                       3100::1/64                                    up/up         N/A             N/A
+lo                         ::1/128                                       up/up         N/A             N/A
+"""
 
 show_multi_asic_ip_intf = """\
 Interface        Master    IPv4 address/mask    Admin/Oper    BGP Neighbor    Neighbor IP
@@ -116,6 +141,25 @@ class TestShowIpInt(object):
         assert return_code == 1
         assert result == show_error_invalid_af
 
+@pytest.mark.usefixtures('setup_teardown_single_asic')
+class TestShowIpIntAlias(object):
+    @pytest.fixture(scope="function")
+    def setup_alias(cls):
+        os.environ['SONIC_CLI_IFACE_MODE'] = "alias"
+        yield
+        os.environ['SONIC_CLI_IFACE_MODE'] = "default"
+
+    def test_show_ip_intf_v4_alias(self, setup_alias):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["ip"].commands["interfaces"], [])
+        assert result.exit_code == 0
+        assert result.output == show_ipv4_intf_with_multple_ips_alias
+
+    def test_show_ip_intf_v6_alias(self, setup_alias):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["ipv6"].commands["interfaces"], [])
+        assert result.exit_code == 0
+        assert result.output == show_ipv6_intf_with_multiple_ips_alias
 
 @pytest.mark.usefixtures('setup_teardown_multi_asic')
 class TestMultiAsicShowIpInt(object):

@@ -1,5 +1,6 @@
 import sys
 import os
+import pytest
 from click.testing import CliRunner
 from .mock_tables import dbconnector
 from unittest.mock import patch, MagicMock
@@ -811,6 +812,14 @@ Ethernet4   Not present
 Ethernet64  Present
 """
 
+test_sfp_presence_alias_all_output = """\
+Port        Presence
+----------  -----------
+etp1        Present
+etp2        Not present
+etp17       Present
+"""
+
 test_qsfp_dd_pm_all_output = """\
 Ethernet0: Transceiver performance monitoring not applicable
 
@@ -833,6 +842,12 @@ class TestSFP(object):
         print("SETUP")
         os.environ["PATH"] += os.pathsep + scripts_path
         os.environ["UTILITIES_UNIT_TESTING"] = "2"
+
+    @pytest.fixture(scope="function")
+    def setup_alias(cls):
+        os.environ['SONIC_CLI_IFACE_MODE'] = "alias"
+        yield
+        os.environ['SONIC_CLI_IFACE_MODE'] = "default"
 
     def test_sfp_presence(self):
         runner = CliRunner()
@@ -880,6 +895,24 @@ Ethernet29  Not present
         expected = """Port        Presence
 ----------  ----------
 Ethernet36  Present
+"""
+        assert result.exit_code == 0
+        assert result.output == expected
+
+    def test_sfp_presence_alias(self, setup_alias):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"], ["etp1"])
+        expected = """Port       Presence
+---------  ----------
+etp1       Present
+"""
+        assert result.exit_code == 0
+        assert result.output == expected
+
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"], ["etp2"])
+        expected = """Port       Presence
+---------  -----------
+etp2       Not present
 """
         assert result.exit_code == 0
         assert result.output == expected
@@ -982,6 +1015,12 @@ class Test_multiAsic_SFP(object):
         os.environ["UTILITIES_UNIT_TESTING"] = "2"
         os.environ["UTILITIES_UNIT_TESTING_TOPOLOGY"] = "multi_asic"
 
+    @pytest.fixture(scope="function")
+    def setup_alias(cls):
+        os.environ['SONIC_CLI_IFACE_MODE'] = "alias"
+        yield
+        os.environ['SONIC_CLI_IFACE_MODE'] = "default"
+
     @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
     def test_sfp_presence_with_ns(self):
         runner = CliRunner()
@@ -1006,6 +1045,12 @@ Ethernet200  Not present
         result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"])
         assert result.exit_code == 0
         assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_sfp_presence_all_output
+
+    def test_sfp_presense_alias_all(self, setup_alias):
+        runner = CliRunner()
+        result = runner.invoke(show.cli.commands["interfaces"].commands["transceiver"].commands["presence"])
+        assert result.exit_code == 0
+        assert "\n".join([ l.rstrip() for l in result.output.split('\n')]) == test_sfp_presence_alias_all_output
 
     @patch.object(show_module.interfaces.click.Choice, 'convert', MagicMock(return_value='asic0'))
     def test_sfp_eeprom_with_dom_with_ns(self):

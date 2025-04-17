@@ -1,5 +1,6 @@
 import os
 import shutil
+import pytest
 
 from click.testing import CliRunner
 
@@ -18,6 +19,14 @@ intf_counters_before_clear = """\
 Ethernet0        D        8  2000.00 MB/s     64.00%        10       100       N/A       10  1500.00 MB/s     48.00%       N/A       N/A       N/A
 Ethernet4      N/A        4   204.80 KB/s        N/A         0     1,000       N/A       40   204.85 KB/s        N/A       N/A       N/A       N/A
 Ethernet8      N/A        6  1350.00 KB/s        N/A       100        10       N/A       60    13.37 MB/s        N/A       N/A       N/A       N/A
+"""
+
+intf_counters_alias_before_clear = """\
+    IFACE    STATE    RX_OK        RX_BPS    RX_UTIL    RX_ERR    RX_DRP    RX_OVR    TX_OK        TX_BPS    TX_UTIL    TX_ERR    TX_DRP    TX_OVR
+---------  -------  -------  ------------  ---------  --------  --------  --------  -------  ------------  ---------  --------  --------  --------
+     etp1        D        8  2000.00 MB/s     64.00%        10       100       N/A       10  1500.00 MB/s     48.00%       N/A       N/A       N/A
+     etp2      N/A        4   204.80 KB/s        N/A         0     1,000       N/A       40   204.85 KB/s        N/A       N/A       N/A       N/A
+     etp3      N/A        6  1350.00 KB/s        N/A       100        10       N/A       60    13.37 MB/s        N/A       N/A       N/A       N/A
 """
 
 intf_counters_ethernet4 = """\
@@ -259,6 +268,12 @@ class TestPortStat(object):
         os.environ["UTILITIES_UNIT_TESTING"] = "2"
         remove_tmp_cnstat_file()
 
+    @pytest.fixture(scope="function")
+    def setup_alias(cls):
+        os.environ['SONIC_CLI_IFACE_MODE'] = "alias"
+        yield
+        os.environ['SONIC_CLI_IFACE_MODE'] = "default"
+
     def test_show_intf_counters(self):
         runner = CliRunner()
         result = runner.invoke(
@@ -273,6 +288,15 @@ class TestPortStat(object):
         print("result = {}".format(result))
         assert return_code == 0
         assert result == intf_counters_before_clear
+
+    def test_show_intf_alias_counters(self, setup_alias):
+        runner = CliRunner()
+        result = runner.invoke(
+            show.cli.commands["interfaces"].commands["counters"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == intf_counters_alias_before_clear
 
     def test_show_intf_counters_ethernet4(self):
         runner = CliRunner()

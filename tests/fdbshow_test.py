@@ -17,6 +17,13 @@ show_mac_output_with_def_vlan = """\
     2       3  11:22:33:66:55:44  Ethernet4  Static
 Total number of entries 2
 """
+show_mac_output_with_def_vlan_alias = """\
+  No.    Vlan  MacAddress         Port       Type
+-----  ------  -----------------  ---------  -------
+    1       2  11:22:33:44:55:66  etp1       Dynamic
+    2       3  11:22:33:66:55:44  etp2       Static
+Total number of entries 2
+"""
 
 show_mac_aging_time_output = """\
 Aging time for switch is 600 seconds
@@ -34,6 +41,17 @@ show_mac_output = """\
     3       4  66:55:44:33:22:11  Ethernet0      Dynamic
     4       4  77:66:44:33:22:11  1000000000fff  Dynamic
     5       5  77:66:55:44:22:11  Ethernet4      Dynamic
+Total number of entries 5
+"""
+
+show_mac_output_alias = """\
+  No.    Vlan  MacAddress         Port           Type
+-----  ------  -----------------  -------------  -------
+    1       2  11:22:33:44:55:66  etp1           Dynamic
+    2       3  11:22:33:66:55:44  etp2           Static
+    3       4  66:55:44:33:22:11  etp1           Dynamic
+    4       4  77:66:44:33:22:11  1000000000fff  Dynamic
+    5       5  77:66:55:44:22:11  etp2           Dynamic
 Total number of entries 5
 """
 
@@ -159,6 +177,12 @@ class TestFdbshow():
         yield
         del os.environ["FDBSHOW_MOCK"]
 
+    @pytest.fixture(scope="function")
+    def setup_alias(cls):
+        os.environ['SONIC_CLI_IFACE_MODE'] = "alias"
+        yield
+        os.environ['SONIC_CLI_IFACE_MODE'] = "default"
+
     def set_mock_variant(self, variant: str):
         os.environ["FDBSHOW_MOCK"] = variant
 
@@ -177,6 +201,15 @@ class TestFdbshow():
         assert return_code == 0
         assert result == show_mac_output_with_def_vlan
 
+    def test_show_mac_def_vlan_alias(self, setup_alias):
+        self.set_mock_variant("2")
+
+        result = self.runner.invoke(show.cli.commands["mac"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == show_mac_output_with_def_vlan_alias
+
     def test_show_mac_aging_time(self):
         self.set_mock_variant("1")
         from .mock_tables import dbconnector
@@ -191,6 +224,15 @@ class TestFdbshow():
         print(result.output)
         assert result.exit_code == 0
         assert result.output == show_mac_aging_time_output
+
+    def test_show_mac_alias(self, setup_alias):
+        self.set_mock_variant("1")
+
+        result = self.runner.invoke(show.cli.commands["mac"], [])
+        print(result.exit_code)
+        print(result.output)
+        assert result.exit_code == 0
+        assert result.output == show_mac_output_alias
 
     def test_show_mac_no_aging_time(self):
         self.set_mock_variant("1")

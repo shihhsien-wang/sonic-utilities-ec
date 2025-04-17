@@ -93,6 +93,10 @@ Routing entry for 192.168.0.1/32
 
 """
 
+show_empty_ip_route_json_expected_output = """\
+{}
+"""
+
 show_specific_recursive_route_expected_output = """\
 Routing entry for 193.11.208.0/25
   Known via "bgp", distance 20, metric 0, best

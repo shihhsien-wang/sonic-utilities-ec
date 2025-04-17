@@ -11,6 +11,8 @@ import json
 import lazy_object_proxy
 import netaddr
 
+import utilities_common.bgp_util as bgp_util
+
 from natsort import natsorted
 from sonic_py_common import multi_asic
 from utilities_common.db import Db
@@ -21,6 +23,79 @@ from sonic_py_common import device_info
 VLAN_SUB_INTERFACE_SEPARATOR = '.'
 
 pass_db = click.make_pass_decorator(Db, ensure=True)
+
+ALIAS_COMMANDS_TABLE = {
+    "portstat": {
+        # show interface counters
+        "title_prefix": "IFACE",
+        "intf_title": "IFACE",
+        "align_left": False
+    },
+    "intfstat": {
+        # show interfaces counters rif
+        "title_prefix": "IFACE",
+        "intf_title": "IFACE",
+        "align_left": False
+    },
+    "pfcstat": {
+        # show pfc counters
+        "title_prefix": "Port Rx",
+        "intf_title": "Port Rx",
+        "align_left": False
+    },
+    "sfputil show eeprom": {
+        # show interface transceiver eeprom
+        # TODO: need to fix it
+        "title_prefix": "IFACE",
+        "intf_title": "IFACE",
+        "align_left": False
+    },
+    "sfputil show": {
+        # show interface transceiver lpmode
+        "title_prefix": "Port",
+        "intf_title": "Port",
+        "align_left": True
+    },
+    "sfpshow presence": {
+        # show interface transceiver presence
+        "title_prefix": "Port",
+        "intf_title": "Port",
+        "align_left": True
+    },
+    "lldpshow": {
+        # show lldp table
+        "title_prefix": "LocalPort",
+        "intf_title": "LocalPort",
+        "align_left": True,
+        "exclude_args": [
+            "-d" # show lldp neighbor
+        ]
+    },
+    "queuestat": {
+        # show queue counters
+        "title_prefix": "Port",
+        "intf_title": "Port",
+        "align_left": False
+    },
+    "fdbshow": {
+        # show mac
+        "title_prefix": "No.",
+        "intf_title": "Port",
+        "align_left": True
+    },
+    "nbrshow": {
+        # show arp/nd
+        "title_prefix": "Address",
+        "intf_title": "Iface",
+        "align_left": True
+    },
+    "ipintutil": {
+        # show ip/ipv6 interface
+        "title_prefix": "Interface",
+        "intf_title": "Interface",
+        "align_left": True
+    }
+}
 
 class AbbreviationGroup(click.Group):
     """This subclass of click.Group supports abbreviated subgroup/subcommand names
@@ -136,6 +211,8 @@ class InterfaceAliasConverter(object):
 
         if not self.port_dict:
             self.port_dict = {}
+
+        self.port_dict['eth0'] = {'alias': 'eth0'}
 
         for port_name in self.port_dict:
             try:
@@ -365,7 +442,65 @@ def interface_has_mirror_config(mirror_table, interface_name):
 
     return False
 
-def print_output_in_alias_mode(output, index):
+# expect all columns are algin to the same direction, return column_start, column_width for further processing
+def print_output_title_header(output, match_field, align_left):
+    # some match field might have space in it, need to replace it instead of just split space
+    replace = False
+    replace_char = '|'
+    if ' ' in match_field:
+        replace = True
+        start = output.find(match_field)
+        end = start + len(match_field)
+        match_field = match_field.replace(' ', replace_char)
+        output = output[:start] + match_field + output[end:]
+
+    columns = output.split()
+    idx = columns.index(match_field)
+    left = 0
+    right = len(output)
+    spaces = 0
+    column_start = 0
+    if align_left:
+        # align left, add diff space to the right
+        left = output.find(columns[idx]) + len(match_field)
+        if idx < len(columns):
+            right = output.find(columns[idx+1])
+            spaces = right - left - 2
+        else:
+            right = len(output)
+            spaces = right - left
+        column_start = left - len(match_field)
+    else:
+        # align right, add diff space to the left
+        right = output.find(columns[idx])
+        if idx:
+            left = output.find(columns[idx-1]) + len(match_field)
+            spaces = right - left - 2
+        else:
+            left = 0
+            spaces = right - left
+        column_start = right - spaces
+
+    # calculate the original width, the space between columns is fixed to 2 spaces
+    column_width = spaces + len(match_field)
+
+    # adjust the match field with the alias max length
+    space_diff = iface_alias_converter.alias_max_length - column_width
+    if space_diff:
+        output = output[:right] + ' '*space_diff + output[right:]
+
+    # replace back for the match field with space
+    if replace:
+        start = output.find(match_field)
+        end = start + len(match_field)
+        match_field = match_field.replace(replace_char, ' ')
+        output = output[:start] + match_field + output[end:]
+
+    click.echo(output.rstrip('\n'))
+    return column_start, column_width
+
+
+def print_output_in_alias_mode(output, return_cmd, column_start=0, column_width=0, align_left=True):
     """Convert and print all instances of SONiC interface
        name to vendor-sepecific interface aliases.
     """
@@ -375,32 +510,38 @@ def print_output_in_alias_mode(output, index):
 
     # Adjust tabulation width to length of alias name
     if output.startswith("---"):
-        word = output.split()
-        dword = word[index]
-        if(len(dword) > iface_alias_converter.alias_max_length):
-            dword = dword[:len(dword) - iface_alias_converter.alias_max_length]
-        underline = dword.rjust(iface_alias_converter.alias_max_length,
-                                '-')
-        word[index] = underline
-        output = '  ' .join(word)
+        diff = iface_alias_converter.alias_max_length - column_width
+        if diff:
+            insert_idx = column_start
+            if align_left:
+                insert_idx += column_width
+            output = output[:insert_idx] + '-'*diff + output[insert_idx:]
+        click.echo(output.rstrip('\n'))
+        return
 
-    # Replace SONiC interface name with vendor alias
-    word = output.split()
-    if word:
-        interface_name = word[index]
-        interface_name = interface_name.replace(':', '')
-    for port_name in natsorted(list(iface_alias_converter.port_dict.keys())):
-            if interface_name == port_name:
-                alias_name = iface_alias_converter.port_dict[port_name]['alias']
-    if alias_name:
-        if len(alias_name) < iface_alias_converter.alias_max_length:
-            alias_name = alias_name.rjust(
-                                iface_alias_converter.alias_max_length)
-        output = output.replace(interface_name, alias_name, 1)
+    if output.startswith("Total"):
+        click.echo(output.rstrip('\n'))
+        return
 
-    click.echo(output.rstrip('\n'))
+    # get the interface name by column start and width
+    column_end = column_start + column_width
+    interface_name = output[column_start:column_end].strip()
+    for port_name in iface_alias_converter.port_dict.keys():
+        if interface_name == port_name:
+            alias_name = iface_alias_converter.port_dict[port_name]['alias']
 
-def run_command_in_alias_mode(command, shell=False):
+    # replace interface name by vendor alias name if it's existed
+    max_width = max(column_width, iface_alias_converter.alias_max_length)
+    replace_name = alias_name if alias_name else interface_name
+    output_intf_name = replace_name.ljust(max_width) if align_left else replace_name.rjust(max_width)
+    output = output[:column_start] + output_intf_name + output[column_end:]
+
+    if return_cmd:
+        return output
+    else:
+        click.echo(output.rstrip('\n'))
+
+def run_command_in_alias_mode(command, display_cmd=False, ignore_error=False, return_cmd=False, interactive_mode=False, shell=False):
     """Run command and replace all instances of SONiC interface names
        in output with vendor-sepecific interface aliases.
     """
@@ -409,100 +550,45 @@ def run_command_in_alias_mode(command, shell=False):
     else:
         command_str = command
     process = subprocess.Popen(command, text=True, shell=shell, stdout=subprocess.PIPE)
+    is_title = False
+    is_alias_command = False
+    column_width = 0
 
+    # check if command is alias command needed to be converted
+    exclude = False
+    for cmd_prefix, data in ALIAS_COMMANDS_TABLE.items():
+        if cmd_prefix in command_str:
+            if "exclude_args" in data:
+                if any(arg in command_str for arg in data["exclude_args"]):
+                    exclude = True
+                    break
+
+            if exclude:
+                break
+
+            is_alias_command = True
+            align_left = data['align_left']
+            title_prefix = data['title_prefix']
+            intf_title = data['intf_title']
+            break
+
+    converted_output = ''
     while True:
         output = process.stdout.readline()
         if output == '' and process.poll() is not None:
             break
 
         if output:
-            index = 1
             raw_output = output
-            output = output.lstrip()
-
-            if command_str.startswith("portstat"):
-                """Show interface counters"""
-                index = 0
-                if output.startswith("IFACE"):
-                    output = output.replace("IFACE", "IFACE".rjust(
-                               iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
-
-            elif command_str.startswith("intfstat"):
-                """Show RIF counters"""
-                index = 0
-                if output.startswith("IFACE"):
-                    output = output.replace("IFACE", "IFACE".rjust(
-                               iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
-
-            elif command_str == "pfcstat":
-                """Show pfc counters"""
-                index = 0
-                if output.startswith("Port Tx"):
-                    output = output.replace("Port Tx", "Port Tx".rjust(
-                                iface_alias_converter.alias_max_length))
-
-                elif output.startswith("Port Rx"):
-                    output = output.replace("Port Rx", "Port Rx".rjust(
-                                iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
-
-            elif (command_str.startswith("sudo sfputil show eeprom")):
-                """Show interface transceiver eeprom"""
-                index = 0
-                print_output_in_alias_mode(raw_output, index)
-
-            elif (command_str.startswith("sudo sfputil show")):
-                """Show interface transceiver lpmode,
-                   presence
-                """
-                index = 0
-                if output.startswith("Port"):
-                    output = output.replace("Port", "Port".rjust(
-                               iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
-
-            elif command_str == "sudo lldpshow":
-                """Show lldp table"""
-                index = 0
-                if output.startswith("LocalPort"):
-                    output = output.replace("LocalPort", "LocalPort".rjust(
-                               iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
-
-            elif command_str.startswith("queuestat"):
-                """Show queue counters"""
-                index = 0
-                if output.startswith("Port"):
-                    output = output.replace("Port", "Port".rjust(
-                               iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
-
-            elif command_str == "fdbshow":
-                """Show mac"""
-                index = 3
-                if output.startswith("No."):
-                    output = "  " + output
-                    output = re.sub(
-                                'Type', '      Type', output)
-                elif output[0].isdigit():
-                    output = "    " + output
-                print_output_in_alias_mode(output, index)
-
-            elif command_str.startswith("nbrshow"):
-                """Show arp"""
-                index = 2
-                if "Vlan" in output:
-                    output = output.replace('Vlan', '  Vlan')
-                print_output_in_alias_mode(output, index)
-            elif command_str.startswith("sudo ipintutil"):
-                """Show ip(v6) int"""
-                index = 0
-                if output.startswith("Interface"):
-                   output = output.replace("Interface", "Interface".rjust(
-                               iface_alias_converter.alias_max_length))
-                print_output_in_alias_mode(output, index)
+            if is_alias_command:
+                if output.lstrip().startswith(title_prefix):
+                    is_title = True
+                    column_start, column_width = print_output_title_header(output, intf_title, align_left)
+                else:
+                    if is_title:
+                        print_output_in_alias_mode(output, return_cmd, column_start, column_width, align_left)
+                    else:
+                        click.echo(output.rstrip('\n'))
 
             else:
                 """
@@ -516,14 +602,16 @@ def run_command_in_alias_mode(command, shell=False):
                     converted_output = re.sub(r"(^|\s){}($|,{{0,1}}\s)".format(port_name),
                             r"\1{}\2".format(iface_alias_converter.name_to_alias(port_name)),
                             converted_output)
-                click.echo(converted_output.rstrip('\n'))
+                if return_cmd:
+                    pass
+                else:
+                    click.echo(converted_output.rstrip('\n'))
 
     rc = process.poll()
-    if rc != 0:
-        sys.exit(rc)
+    return converted_output.rstrip('\n'), rc
 
 
-def run_command(command, display_cmd=False, ignore_error=False, return_cmd=False, interactive_mode=False, shell=False):
+def run_command(command, display_cmd=False, ignore_error=False, return_cmd=False, interactive_mode=False, force_none_alias=False, shell=False):
     """
     Run bash command. Default behavior is to print output to stdout. If the command returns a non-zero
     return code, the function will exit with that return code.
@@ -547,9 +635,15 @@ def run_command(command, display_cmd=False, ignore_error=False, return_cmd=False
     # both SONiC interface name and alias name for all interfaces.
     # IP route table cannot be handled in function run_command_in_alias_mode since it is in JSON format
     # with a list for next hops
-    if get_interface_naming_mode() == "alias" and not command_str.startswith("intfutil") and not re.search("show ip|ipv6 route", command_str):
-        run_command_in_alias_mode(command, shell=shell)
-        sys.exit(0)
+    if not force_none_alias and get_interface_naming_mode() == "alias" and not command_str.startswith("intfutil") and not bgp_util.is_vtysh_cmd(command_str):
+        output, rc = run_command_in_alias_mode(command, display_cmd=display_cmd, ignore_error=ignore_error, return_cmd=return_cmd, interactive_mode=interactive_mode, shell=shell)
+        if return_cmd:
+            return output, rc
+        else:
+            if rc != 0:
+                sys.exit(rc)
+            else:
+                return
 
     proc = subprocess.Popen(command, shell=shell, text=True, stdout=subprocess.PIPE)
 

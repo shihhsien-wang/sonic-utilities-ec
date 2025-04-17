@@ -98,6 +98,9 @@ def get_ip_value(ipn):
     ip_intf = ipaddress.ip_interface(ipn[0])
     return ip_intf.ip
 
+def print_ip_routes_summary(summary_info):
+    print(summary_info)
+
 def print_ip_routes(route_info, filter_by_ip):
     """
     Sample Entry output
@@ -331,9 +334,10 @@ def show_routes(args, namespace, display, verbose, ipver):
                 print("dislay option '{}' is not a valid option.".format(display))
                 return
     device = multi_asic_util.MultiAsic(display, namespace)
-    arg_strg = ""
     found_json = 0
-    found_other_parms = 0
+    vrf_mode = 0
+    vrf_all_mode = 0
+    summary_mode = 0
     ns_l = []
     print_ns_str = False
     filter_by_ip = False
@@ -359,67 +363,116 @@ def show_routes(args, namespace, display, verbose, ipver):
     # For Multi-ASIC platform the support for combining routes will be supported for "show ip/v6 route"
     # and optionally with specific IP address as parameter and the json option.  If any other option is
     # specified, the handling will always be handled by the specific namespace FRR.
+    checking_vrf_flag = False
+    vrf_name = ''
+    args_strg = []
+    origin_cmd_replacement = []
     for arg in args:
-        arg_strg += str(arg) + " "
-        if str(arg) == "json":
+        if "json".startswith(str(arg)):
+            args_strg.append(str(arg))
             found_json = 1
+        elif "vrf".startswith(str(arg)):
+            vrf_mode = 1
+            checking_vrf_flag = True
+        elif checking_vrf_flag :
+            checking_vrf_flag = False
+            if 'all'.startswith(str(arg)):
+                vrf_all_mode = 1
+            else:
+                vrf_name = str(arg)
+        elif 'summary'.startswith(str(arg)):
+            summary_mode = 1
+            args_strg.append("summary")
         else:
+            args_strg.append(str(arg))
             try:
                 filter_by_ip = ipaddress.ip_network(arg)
             except ValueError:
                 # Not ip address just ignore it
-                found_other_parms = 1
+                pass
 
     # using the same format for both multiasic or non-multiasic
-    if not found_json and not found_other_parms:
-        arg_strg += "json"
+    if not found_json and not summary_mode:
+        args_strg.append("json")
+        origin_cmd_replacement.append("json")
 
-    combined_route = {}
-    for ns in ns_l:
+    if vrf_all_mode:
+        cmd = "show vrf"
+        vrf_list = bgp_util.get_vrf_list()
+    elif vrf_mode:
+        vrf_list = [vrf_name]
+    else:
+        vrf_list = ["default"]
+        origin_cmd_replacement.append(" vrf default")
+
+    combined_route_by_vrf = []
+    for vrf in vrf_list:
+        combined_route = {}
+        summary_output = ''
+        for ns in ns_l:
         # Need to add "ns" to form bgpX so it is sent to the correct bgpX docker to handle the request
-        cmd = "show {} route {}".format(ipver, arg_strg)
-        output = bgp_util.run_bgp_show_command(cmd, ns)
+            cmd = "show {} route vrf {} {}".format(ipver, vrf,  " ".join(args_strg))
+            output = bgp_util.run_bgp_show_command(cmd, ns)
+            # in case no output or something went wrong with user specified cmd argument(s) error it out
+            # error from FRR always start with character "%"
+            if summary_mode:
+                if summary_output != '':
+                    summary_output += "\n"
+                summary_output += "{}:\n".format(ns) + output
+                continue
 
-        # in case no output or something went wrong with user specified cmd argument(s) error it out
-        # error from FRR always start with character "%"
-        if output == "":
-            return
-        if output[0] == "%":
-            # remove the "json" keyword that was added by this handler to show original cmd user specified 
-            json_str = output[-5:-1]
-            if json_str == "json":
-                error_msg = output[:-5]
+            if output == "":
+                if found_json:
+                    print("{}")
+                return
+            if output[0] == "%":
+                # remove the "json" keyword that was added by this handler to show original cmd user specified
+                if output.find("Unknown command") > -1:
+                    for r in origin_cmd_replacement:
+                        output = output.replace(r, "")
+                    print(output)
+                    return
+                else:
+                    return output
+
+            route_info = json.loads(output)
+            if filter_back_end or print_ns_str:
+                # clean up the dictionary to remove all the nexthops that are back-end interface
+                process_route_info(route_info, device, filter_back_end, print_ns_str, asic_cnt, ns, combined_route, back_end_intf_set)
             else:
-                error_msg = output
-            print(error_msg)
-            return
+                combined_route = route_info
 
-        # Multi-asic show ip route with additional parms are handled by going to FRR directly and get those outputs from each namespace
-        if found_other_parms:
-            print("{}:".format(ns))
-            print(output)
-            continue
-
-        route_info = json.loads(output)
-        if filter_back_end or print_ns_str:
-            # clean up the dictionary to remove all the nexthops that are back-end interface
-            process_route_info(route_info, device, filter_back_end, print_ns_str, asic_cnt, ns, combined_route, back_end_intf_set)
+        if summary_mode:
+            combined_route_by_vrf.append(summary_output)
         else:
-            combined_route = route_info
+            combined_route_by_vrf.append(combined_route)
 
-    if not combined_route:
+    if not combined_route_by_vrf or all(not element for element in combined_route_by_vrf):
+        if found_json:
+            print("{}")
         return
 
     if not found_json:
         #print out the header if this is not a json request
-        if not filter_by_ip:
+        if not filter_by_ip and not summary_mode:
             print_show_ip_route_hdr()
         if print_ns_str:
-            for name_space, ns_route in sorted(combined_route.items()):
+            for name_space, ns_route in sorted(combined_route_by_vrf[0].items()):
                 print("{}:".format(name_space))
-                print_ip_routes(ns_route, filter_by_ip)
+                if summary_mode:
+                    print_ip_routes_summary(ns_route)
+                else:
+                    print_ip_routes(ns_route, filter_by_ip)
         else:
-            print_ip_routes(combined_route, filter_by_ip)
+            for i, combined_route in enumerate(combined_route_by_vrf):
+                if len(combined_route_by_vrf) > 1:
+                    print("VRF {}:".format(vrf_list[i]))
+                if summary_mode:
+                    print_ip_routes_summary(combined_route)
+                else:
+                    print_ip_routes(combined_route, filter_by_ip)
+                if len(combined_route_by_vrf) > 1:
+                    print("")
     else:
         new_string = json.dumps(combined_route,sort_keys=True, indent=4)
         print(new_string)
