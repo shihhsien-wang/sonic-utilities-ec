@@ -261,6 +261,16 @@ def breakout_Ports(cm, delPorts=list(), portJson=dict(), force=False, \
             raise click.Abort()
         return
 
+def get_sai_version():
+    command = "docker exec syncd dpkg -l | grep libsaibcm | awk '{print $3}'"
+    proc = subprocess.Popen(command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
+
+    if proc.returncode != 0 or not stdout:
+        return ""
+
+    return stdout.strip()
+
 #
 # Helper functions
 #
@@ -3189,7 +3199,14 @@ def reload(ctx, no_dynamic_buffer, no_delay, dry_run, json_data, ports, verbose)
             qos_template_file = os.path.join(
                 hwsku_path, asic_id_suffix, "qos.json.j2"
             )
-            if os.path.isfile(qos_template_file):
+
+            #
+            # 10.1.6.0 is community SAI version.
+            # Ignore applying lossless buffer configuration on community platforms.
+            #
+            if "10.1.6.0" == get_sai_version():
+                continue
+            elif os.path.isfile(qos_template_file):
                 cmd_ns = [] if ns is DEFAULT_NAMESPACE else ['-n', str(ns)]
                 fname = "{}{}".format(dry_run, asic_id_suffix) if dry_run else "config-db"
                 command = [SONIC_CFGGEN_PATH] + cmd_ns + from_db + ['-t', '{},{}'.format(buffer_template_file, fname), '-t', '{},{}'.format(qos_template_file, fname), '-y', sonic_version_file]
