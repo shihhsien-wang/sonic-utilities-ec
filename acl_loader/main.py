@@ -1090,7 +1090,7 @@ class AclLoader(object):
             pir = val.get("pir", "")
             pbs = val.get("pbs", "")
 
-            if val["mode"] == 'packets':
+            if val["meter_type"] == 'packets':
                 cir = "{:,}".format(int(cir)) if cir != "" else ""
                 cbs = "{:,}".format(int(cbs)) if cbs != "" else ""
                 pir = "{:,}".format(int(pir)) if pir != "" else ""
