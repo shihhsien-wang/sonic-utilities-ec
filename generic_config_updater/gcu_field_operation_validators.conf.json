@@ -28,7 +28,12 @@
                 "th": [ "Force10-S6100", "Arista-7060CX-32S-C32", "Arista-7060CX-32S-C32-T1", "Arista-7060CX-32S-D48C8", "Celestica-DX010-C32", "Seastone-DX010" ],
                 "th2": [ "Arista-7260CX3-D108C8",  "Arista-7260CX3-C64", "Arista-7260CX3-Q64" ],
                 "td2": [ "Force10-S6000", "Force10-S6000-Q24S32", "Arista-7050-QX32", "Arista-7050-QX-32S", "Nexus-3164", "Arista-7050QX32S-Q32" ],
-                "td3": [ "Arista-7050CX3-32S-C32", "Arista-7050CX3-32S-D48C8" ]
+                "hr4": [ "Accton-AS4625" ],
+                "hx5": [ "Accton-AS4630" ],
+                "td3": [ "Arista-7050CX3-32S-C32", "Arista-7050CX3-32S-D48C8", "Accton-AS5835", "Accton-AS7326", "Accton-AS7726" ],
+                "td4": [ "Accton-AS9726" ],
+                "th4": [ "Accton-AS9736", "Accton-AS9737" ],
+                "th5": [ "Accton-AS9817" ]
             }
 	}
     },
@@ -104,7 +109,12 @@
                             "td2": "20181100",
                             "th": "20181100",
                             "th2": "20181100",
+                            "hr4": "20231100",
+                            "hx5": "20231100",
                             "td3": "20201200",
+                            "td4": "20231100",
+                            "th4": "20231100",
+                            "th5": "20231100",
                             "cisco-8000": "20201200"
                         }
                     },

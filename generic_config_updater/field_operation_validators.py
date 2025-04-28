@@ -77,13 +77,13 @@ def rdma_config_update_validator(patch_element):
     table = jsonpointer.JsonPointer(path).parts[0]
     
     # Helper function to return relevant cleaned paths, considers case where the jsonpatch value is a dict
-    # For paths like /PFC_WD/Ethernet112/action, remove Ethernet112 from the path so that we can clearly determine the relevant field (i.e. action, not Ethernet112)
+    # Remove the index field (if present) after the key.
     def _get_fields_in_patch():
         cleaned_fields = []
 
         field_elements = jsonpointer.JsonPointer(path).parts[1:]
-        cleaned_field_elements = [elem for elem in field_elements if not any(char.isdigit() for char in elem)]
-        cleaned_field = '/'.join(cleaned_field_elements).lower()
+        if len(field_elements) > 0:
+            cleaned_field = '/'.join(field_elements[1:]).lower()
         
 
         if 'value' in patch_element.keys() and isinstance(patch_element['value'], dict):
