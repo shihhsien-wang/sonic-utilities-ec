@@ -6983,17 +6983,6 @@ def enable(ctx):
     except ValueError as e:
         ctx.fail("Invalid ConfigDB. Error: {}".format(e))
 
-    try:
-        proc = subprocess.Popen(['systemctl', 'is-active', 'sflow'], text=True, stdout=subprocess.PIPE)
-        (out, err) = proc.communicate()
-    except SystemExit as e:
-        ctx.fail("Unable to check sflow status {}".format(e))
-
-    if out != "active":
-        log.log_info("sflow service is not enabled. Starting sflow docker...")
-        clicommon.run_command(['sudo', 'systemctl', 'enable', 'sflow'])
-        clicommon.run_command(['sudo', 'systemctl', 'start', 'sflow'])
-
 #
 # 'sflow' command ('config sflow disable')
 #
