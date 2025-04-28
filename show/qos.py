@@ -106,8 +106,36 @@ def tc_queue(db, profile):
     header = ['TC', 'Queue']
     show_qos_map(db, profile, 'TC_TO_QUEUE_MAP', header, 'tc-queue')
 
+#
+# 'qos pfc-priority-queue' command ("show qos pfc-priority-queue ")
+#
+@click.command('pfc-priority-queue')
+@click.argument('profile', required=False)
+@clicommon.pass_db
+def pfcpri_queue(db, profile):
+    '''Show PFC priority to queue qos policy'''
+    header = ['PFC Priority', 'Queue']
+    show_qos_map(db, profile, 'MAP_PFC_PRIORITY_TO_QUEUE', header, 'pfc-queue')
+
+def is_pfc_not_supported_device():
+    devices = [
+        # HR4
+        'Accton-AS4625-54T',
+        'Accton-AS4625-54P',
+    ]
+
+    hwsku = device_info.get_hwsku()
+    if hwsku:
+        for device in devices:
+            if hwsku.startswith(device):
+                return True
+    return False
+
 def add_command(show_qos):
     show_qos.add_command(dot1p_tc)
     show_qos.add_command(dscp_tc)
     show_qos.add_command(tc_pg)
     show_qos.add_command(tc_queue)
+
+    if is_pfc_not_supported_device() == False:
+        show_qos.add_command(pfcpri_queue)

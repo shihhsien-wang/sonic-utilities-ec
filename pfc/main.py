@@ -4,18 +4,25 @@ import click
 from swsscommon.swsscommon import ConfigDBConnector
 from tabulate import tabulate
 from natsort import natsorted
+from utilities_common.db import Db
+import utilities_common.config_util as config_util
+import utilities_common.cli as clicommon
 
 ALL_PRIORITIES = [str(x) for x in range(8)]
 PRIORITY_STATUS = ['on', 'off']
 
-def configPfcAsym(interface, pfc_asym):
+def configPfcAsym(ctx, interface, pfc_asym):
     """
     PFC handler to configure asymmentric PFC.
     """
-    configdb = ConfigDBConnector()
-    configdb.connect()
+    config_db = ctx.obj.cfgdb
 
-    configdb.mod_entry("PORT", interface, {'pfc_asym': pfc_asym})
+    if not clicommon.is_valid_port(config_db, interface):
+        ctx.fail("interface {} doesn't exist".format(interface))
+
+    config_util.update(ctx, "PORT", interface,
+                       {'pfc_asym': pfc_asym},
+                       "PORT_PFC_ASYM_STATE_TABLE")
 
 
 def showPfcAsym(interface):
@@ -49,12 +56,14 @@ def showPfcAsym(interface):
     click.echo(tabulate(sorted_table, headers=header, tablefmt="simple", missingval=""))
     click.echo()
 
-def configPfcPrio(status, interface, priority):
-    configdb = ConfigDBConnector()
-    configdb.connect()
+def configPfcPrio(ctx, status, interface, priority):
+    config_db = ctx.obj.cfgdb
+
+    if not clicommon.is_valid_port(config_db, interface):
+        ctx.fail("interface {} doesn't exist".format(interface))
 
     """Current lossless priorities on the interface"""
-    entry = configdb.get_entry('PORT_QOS_MAP', interface)
+    entry = config_db.get_entry('PORT_QOS_MAP', interface)
     enable_prio = entry.get('pfc_enable', '').split(',')
 
     """Avoid '' in enable_prio"""
@@ -75,9 +84,12 @@ def configPfcPrio(status, interface, priority):
         enable_prio.remove(priority)
 
     enable_prio.sort()
-    configdb.mod_entry("PORT_QOS_MAP", interface,
-                      {'pfc_enable': ','.join(enable_prio),
-                       'pfcwd_sw_enable': ','.join(enable_prio)})
+
+    config_util.update(ctx, "PORT_QOS_MAP", interface,
+                       {"pfc_enable": ",".join(enable_prio),
+                        "pfcwd_sw_enable": ",".join(enable_prio)},
+                       "PORT_PFC_STATE_TABLE")
+
 
     """Show the latest PFC configuration"""
     showPfcPrio(interface)
@@ -130,17 +142,24 @@ def show():
 @click.command()
 @click.argument('status', type=click.Choice(PRIORITY_STATUS))
 @click.argument('interface', type=click.STRING)
-def configAsym(status, interface):
+@click.pass_context
+def configAsym(ctx, status, interface):
     """Configure asymmetric PFC on a given port."""
-    configPfcAsym(interface, status)
+
+    ctx.obj = Db()
+
+    configPfcAsym(ctx, interface, status)
 
 @click.command()
 @click.argument('status', type=click.Choice(PRIORITY_STATUS))
 @click.argument('interface', type=click.STRING)
 @click.argument('priority', type=click.Choice(ALL_PRIORITIES))
-def configPrio(status, interface, priority):
+@click.pass_context
+def configPrio(ctx, status, interface, priority):
     """Configure PFC on a given priority."""
-    configPfcPrio(status, interface, priority)
+
+    ctx.obj = Db()
+    configPfcPrio(ctx, status, interface, priority)
 
 @click.command()
 @click.argument('interface', type=click.STRING, required=False)

@@ -362,6 +362,103 @@ def delete(db, profile):
     config_util.delete(ctx, "TC_TO_QUEUE_MAP", profile)
 
 #
+# 'qos pfc-priority-queue' group ('config qos pfc-priority-queue ...')
+#
+@click.group('pfc-priority-queue')
+def pfc_priority_queue():
+    """Configure PFC priority to queue mapping"""
+    pass
+
+@pfc_priority_queue.command('add')
+@click.argument('profile', metavar='<profile>', required=True)
+@click.option('--pfc-priority', type=click.STRING, required=True, help="PFC priority value")
+@click.option('--queue', type=click.IntRange(0, 7), required=True, help="Queue value")
+@clicommon.pass_db
+def add(db, profile, pfc_priority, queue):
+    """Add pfc-priority-queue map profile."""
+    config_db = db.cfgdb
+    ctx = click.get_current_context()
+
+    asic_type = device_info.get_sonic_version_info().get('asic_type', '')
+    if asic_type == 'barefoot':
+        ctx.fail('Not support pfc-priority-queue profile on Intel platform.')
+
+    entry = config_db.get_entry('MAP_PFC_PRIORITY_TO_QUEUE', profile)
+    if len(entry) != 0:
+        ctx.fail("Profile '{}' already exists use update option.".format(profile))
+
+    pfcpri_queue_map = {}
+    validate_qos_map_values(ctx, "pfc-priority", pfc_priority, queue, pfcpri_queue_map)
+
+    config_util.create(ctx, "MAP_PFC_PRIORITY_TO_QUEUE", profile, pfcpri_queue_map,
+                       "QOS_PFC_PRIORITY_TO_QUEUE_MAP_TABLE")
+
+@pfc_priority_queue.command('update')
+@click.argument('profile', metavar='<profile>', required=True)
+@click.option('--pfc-priority', type=click.STRING, required=True, help="PFC priority value")
+@click.option('--queue', type=click.IntRange(0, 7), required=False, help="Queue value")
+@click.option('--remove', default=False, is_flag=True, help="Delete the mapping entry")
+@clicommon.pass_db
+def update(db, profile, pfc_priority, queue, remove):
+    """Update pfc-priority-queue map profile."""
+    config_db = db.cfgdb
+    ctx = click.get_current_context()
+
+    asic_type = device_info.get_sonic_version_info().get('asic_type', '')
+    if asic_type == 'barefoot':
+        ctx.fail('Not support pfc-priority-queue profile on Intel platform.')
+
+    entry = config_db.get_entry('MAP_PFC_PRIORITY_TO_QUEUE', profile)
+    if len(entry) == 0:
+        ctx.fail("Profile '{}' not found.".format(profile))
+
+    if remove == False and queue == None:
+        ctx.fail('--queue is a required parameter.')
+
+    pfcpri_queue_map = {}
+    validate_qos_map_values(ctx, "pfc-priority", pfc_priority, queue, pfcpri_queue_map)
+    validate_qos_map_bind_interface(db, profile, 'pfc_to_queue_map')
+
+    if remove:
+        for i in pfcpri_queue_map:
+            if i in entry:
+                del entry[i]
+
+        config_util.delete(ctx, "MAP_PFC_PRIORITY_TO_QUEUE", profile)
+
+        if len(entry) != 0:
+            config_util.create(ctx, "MAP_PFC_PRIORITY_TO_QUEUE", profile, entry,
+                               "QOS_PFC_PRIORITY_TO_QUEUE_MAP_TABLE")
+    else:
+        for i in entry:
+            if i not in pfcpri_queue_map:
+                pfcpri_queue_map[i] = entry[i]
+
+        config_util.delete(ctx, "MAP_PFC_PRIORITY_TO_QUEUE", profile)
+        config_util.create(ctx, "MAP_PFC_PRIORITY_TO_QUEUE", profile, pfcpri_queue_map,
+                           "QOS_PFC_PRIORITY_TO_QUEUE_MAP_TABLE")
+
+@pfc_priority_queue.command('del')
+@click.argument('profile', metavar='<profile>', required=True)
+@clicommon.pass_db
+def delete(db, profile):
+    """Delete pfc-priority-queue map profile."""
+    config_db = db.cfgdb
+    ctx = click.get_current_context()
+
+    asic_type = device_info.get_sonic_version_info().get('asic_type', '')
+    if asic_type == 'barefoot':
+        ctx.fail('Not support pfc-priority-queue profile on Intel platform.')
+
+    entry = config_db.get_entry('MAP_PFC_PRIORITY_TO_QUEUE', profile)
+    if len(entry) == 0:
+        ctx.fail("pfc-priority-queue profile '{}' not found.".format(profile))
+
+    validate_qos_map_bind_interface(db, profile, 'pfc_to_queue_map')
+
+    config_util.delete(ctx, "MAP_PFC_PRIORITY_TO_QUEUE", profile)
+
+#
 # 'qos' subgroup ('config interface qos ...')
 #
 
@@ -433,6 +530,20 @@ def tc_queue_interface(db, op, interface_name, profile):
     for intf in interfaces:
         update_qos_map_interface(db, op, 'tc_to_queue_map', 'TC_TO_QUEUE_MAP', profile, intf)
 
+@click.command('pfc-priority-queue')
+@click.argument('op', metavar='{bind|unbind}', type=click.Choice(['bind', 'unbind']), required=True)
+@click.argument('interface_name', metavar='<interface_name>', required=True)
+@click.argument('profile', metavar='<profile>', required=False)
+@clicommon.pass_db
+def pfc_priority_queue_interface(db, op, interface_name, profile):
+    """pfc-priority-queue policy configuration"""
+    if op == 'bind' and profile == None:
+        ctx = click.get_current_context()
+        ctx.fail("Cannot find pfc-priority-queue profile.")
+
+    update_qos_map_interface(db, op, 'pfc_to_queue_map', 'MAP_PFC_PRIORITY_TO_QUEUE', profile, interface_name)
+
+
 @qos_interface.command('dscp-tc')
 @click.argument('op', metavar='{bind|unbind}', type=click.Choice(['bind', 'unbind']), required=True)
 @click.argument('interface_name', metavar='<interface_name>', required=True)
@@ -446,6 +557,20 @@ def dscp_tc_interface(db, op, interface_name, profile):
 
     update_qos_map_interface(db, op, 'dscp_to_tc_map', 'DSCP_TO_TC_MAP', profile, interface_name)
 
+def is_pfc_not_supported_device():
+    devices = [
+        # HR4
+        'Accton-AS4625-54T',
+        'Accton-AS4625-54P',
+    ]
+
+    hwsku = device_info.get_hwsku()
+    if hwsku:
+        for device in devices:
+            if hwsku.startswith(device):
+                return True
+    return False
+
 def add_command(config_qos, interface):
     config_qos.add_command(dot1p_tc)
     config_qos.add_command(dscp_tc)
@@ -453,3 +578,7 @@ def add_command(config_qos, interface):
     config_qos.add_command(tc_queue)
 
     interface.add_command(qos_interface)
+
+    if is_pfc_not_supported_device() == False:
+        config_qos.add_command(pfc_priority_queue)
+        qos_interface.add_command(pfc_priority_queue_interface)
