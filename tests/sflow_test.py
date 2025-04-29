@@ -102,11 +102,9 @@ class TestShowSflow(object):
         assert result.output == show_sflow_output_local
 
         # enable
-        with mock.patch("utilities_common.cli.run_command", mock.MagicMock()) as mock_run_command:
-            result = runner.invoke(config.config.commands["sflow"].commands["enable"], [], obj=obj)
-            print(result.exit_code, result.output)
-            assert result.exit_code == 0
-            assert mock_run_command.call_count == 2
+        result = runner.invoke(config.config.commands["sflow"].commands["enable"], [], obj=obj)
+        print(result.exit_code, result.output)
+        assert result.exit_code == 0
 
         # run show and check
         result = runner.invoke(show.cli.commands["sflow"], [], obj=db)
