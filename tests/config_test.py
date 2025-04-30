@@ -871,6 +871,7 @@ class TestConfigQos(object):
             setup_single_broadcom_asic
         ):
         (config, show) = get_cmd_module
+        config.get_sai_version = mock.Mock(return_value="2.0.0")
         runner = CliRunner()
         output_file = os.path.join(os.sep, "tmp", "qos_config_output.json")
         print("Saving output in {}".format(output_file))
@@ -936,6 +937,8 @@ class TestConfigQosMasic(object):
             setup_multi_broadcom_masic
         ):
         (config, show) = get_cmd_module
+
+        config.get_sai_version = mock.Mock(return_value="2.0.0")
         runner = CliRunner()
         output_file = os.path.join(os.sep, "tmp", "qos_config_output.json")
         print("Saving output in {}<0,1,2..>".format(output_file))
@@ -1699,7 +1702,7 @@ class TestConfigLoadMgmtConfig(object):
             }
         }
         self.check_output(get_cmd_module, device_desc_result, load_mgmt_config_command_ipv6_only_output, 7)
-    
+
     def test_config_load_mgmt_config_ipv4_ipv6(self, get_cmd_module, setup_single_broadcom_asic):
         device_desc_result = {
             'DEVICE_METADATA': {
@@ -1931,19 +1934,19 @@ class TestConfigWarmRestart(object):
         print(result.output)
         assert result.exit_code != 0
         assert "Invalid ConfigDB. Error" in result.output
-    
+
     def test_warm_restart_neighsyncd_timer(self):
         config.ADHOC_VALIDATION = True
         runner = CliRunner()
         db = Db()
         obj = {'db':db.cfgdb}
-        
+
         result = runner.invoke(config.config.commands["warm_restart"].commands["neighsyncd_timer"], ["0"], obj=obj)
         print(result.exit_code)
         print(result.output)
         assert result.exit_code != 0
         assert "neighsyncd warm restart timer must be in range 1-9999" in result.output
-    
+
     @patch("validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=True))
     @patch("config.validated_config_db_connector.ValidatedConfigDBConnector.validated_mod_entry", mock.Mock(side_effect=ValueError))
     def test_warm_restart_bgp_timer_yang_validation(self):
@@ -1957,7 +1960,7 @@ class TestConfigWarmRestart(object):
         print(result.output)
         assert result.exit_code != 0
         assert "Invalid ConfigDB. Error" in result.output
-    
+
     def test_warm_restart_bgp_timer(self):
         config.ADHOC_VALIDATION = True
         runner = CliRunner()
@@ -1969,7 +1972,7 @@ class TestConfigWarmRestart(object):
         print(result.output)
         assert result.exit_code != 0
         assert "bgp warm restart timer must be in range 1-3600" in result.output
-    
+
     @patch("validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=True))
     @patch("config.validated_config_db_connector.ValidatedConfigDBConnector.validated_mod_entry", mock.Mock(side_effect=ValueError))
     def test_warm_restart_teamsyncd_timer_yang_validation(self):
@@ -1995,7 +1998,7 @@ class TestConfigWarmRestart(object):
         print(result.output)
         assert result.exit_code != 0
         assert "teamsyncd warm restart timer must be in range 1-3600" in result.output
-    
+
     @patch("validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=True))
     @patch("config.validated_config_db_connector.ValidatedConfigDBConnector.validated_mod_entry", mock.Mock(side_effect=ValueError))
     def test_warm_restart_bgp_eoiu_yang_validation(self):
@@ -2052,7 +2055,7 @@ class TestConfigCableLength(object):
         print(result.output)
         assert result.exit_code != 0
         assert "Invalid ConfigDB. Error" in result.output
-    
+
     @patch("config.main.ConfigDBConnector.get_entry", mock.Mock(return_value="Port Info"))
     @patch("config.main.is_dynamic_buffer_enabled", mock.Mock(return_value=True))
     def test_add_cablelength_with_invalid_name_invalid_length(self):
@@ -2078,7 +2081,7 @@ class TestConfigLoopback(object):
         print("SETUP")
         import config.main
         importlib.reload(config.main)
-    
+
     @patch("validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=True))
     @patch("config.validated_config_db_connector.ValidatedConfigDBConnector.validated_set_entry", mock.Mock(side_effect=ValueError))
     def test_add_loopback_with_invalid_name_yang_validation(self):
@@ -2116,7 +2119,7 @@ class TestConfigLoopback(object):
         print(result.output)
         assert result.exit_code != 0
         assert "Loopback12 does not exist" in result.output
-    
+
     def test_del_nonexistent_loopback_adhoc_validation(self):
         config.ADHOC_VALIDATION = True
         runner = CliRunner()
@@ -2128,7 +2131,7 @@ class TestConfigLoopback(object):
         print(result.output)
         assert result.exit_code != 0
         assert "Loopbax1 is invalid, name should have prefix 'Loopback' and suffix '<0-999>'" in result.output
-    
+
     @patch("config.validated_config_db_connector.ValidatedConfigDBConnector.validated_set_entry", mock.Mock(return_value=True))
     @patch("validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=True))
     def test_add_loopback_yang_validation(self):
@@ -2152,7 +2155,7 @@ class TestConfigLoopback(object):
         print(result.exit_code)
         print(result.output)
         assert result.exit_code == 0
-    
+
     @classmethod
     def teardown_class(cls):
         print("TEARDOWN")
