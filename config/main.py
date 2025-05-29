@@ -40,6 +40,8 @@ from .validated_config_db_connector import ValidatedConfigDBConnector
 import utilities_common.asic_info as asic_info
 import utilities_common.multi_asic as multi_asic_util
 import utilities_common.config_util as config_util
+import utilities_common.dhcp_relay_util as dhcp_relay_util
+import utilities_common.dhcp_relay_util as is_dhcp_relay_running
 
 
 from .utils import log
@@ -7791,6 +7793,9 @@ def add_mac(db, mac_address):
         click.get_current_context().fail(f'static-anycast-gateway MAC address {mac_address} is multicast, only allow unicast.')
 
     if not db.cfgdb.get_entry('SAG', 'GLOBAL'):
+        if is_dhcpv6_relay_config_with_sag(db):
+            if dhcp_relay_util.is_dhcp_relay_running():
+                dhcp_relay_util.handle_restart_dhcp_relay_service()
         db.cfgdb.set_entry('SAG', 'GLOBAL', {'gateway_mac': mac_address})
     else:
         click.get_current_context().fail(f'static-anycast-gateway MAC address {mac_address} is alreday existed. Remove it first')
@@ -7803,10 +7808,24 @@ def del_mac(db):
 
     sag_entry = db.cfgdb.get_entry('SAG', 'GLOBAL')
     if sag_entry:
+        if is_dhcpv6_relay_config_with_sag(db):
+            if dhcp_relay_util.is_dhcp_relay_running():
+                dhcp_relay_util.handle_restart_dhcp_relay_service()
         db.cfgdb.mod_entry('SAG', 'GLOBAL', None)
     else:
         click.get_current_context().fail(f'static-anycast-gateway MAC address {mac_address} not found.')
 
+def is_dhcpv6_relay_config_with_sag(db):
+    DHCP_RELAY_TABLE = "DHCP_RELAY"
+    VLAN_INTERFACE_TABLE = "VLAN_INTERFACE"
+    relay_keys = db.cfgdb.get_keys(DHCP_RELAY_TABLE)
+    vlan_intf_keys = db.cfgdb.get_keys(VLAN_INTERFACE_TABLE)
+    for key in relay_keys:
+        if key.startswith('Vlan') and key in vlan_intf_keys:
+            vlan_intf_entry = db.cfgdb.get_entry('VLAN_INTERFACE', key)
+            if vlan_intf_entry.get("static_anycast_gateway") == "true":
+                return True
+    return False
 
 
 from . import acl as acl_command

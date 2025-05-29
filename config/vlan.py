@@ -369,6 +369,9 @@ def enable_vlan_sag(db, vid):
         if k == vlan and v.get('unique_ip') == 'enable':
             ctx.fail("MCLAG unique-ip is enabled. Remove it first.")
 
+    if is_dhcpv6_relay_config_exist(db, vlan):
+        if is_dhcp_relay_running() and is_sag_mac_config_exist(db):
+            dhcp_relay_util.handle_restart_dhcp_relay_service()
     db.cfgdb.mod_entry('VLAN_INTERFACE', vlan, {"static_anycast_gateway": "true"})
 
 
@@ -387,7 +390,15 @@ def disable_vlan_sag(db, vid):
 
     current_entry = db.cfgdb.get_entry('VLAN_INTERFACE', vlan)
     if current_entry.get("static_anycast_gateway") == "true":
+        if is_dhcpv6_relay_config_exist(db, vlan):
+            if is_dhcp_relay_running() and is_sag_mac_config_exist(db):
+                dhcp_relay_util.handle_restart_dhcp_relay_service()
         db.cfgdb.mod_entry('VLAN_INTERFACE', vlan, {"static_anycast_gateway": "false"})
     else:
         ctx.fail(f"static-anycast-gateway is already disabled")
 
+def is_sag_mac_config_exist(db):
+    sag_entry = db.cfgdb.get_entry('SAG', 'GLOBAL')
+    if sag_entry:
+        return True
+    return False

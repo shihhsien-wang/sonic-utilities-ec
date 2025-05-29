@@ -18,3 +18,8 @@ def handle_restart_dhcp_relay_service():
     except SystemExit as e:
         ctx = click.get_current_context()
         ctx.fail("Restart service dhcp_relay failed with error {}".format(e))
+
+def is_dhcp_relay_running():
+    out, _ = clicommon.run_command(["systemctl", "show", "dhcp_relay.service", "--property", "ActiveState", "--value"],
+                                   return_cmd=True)
+    return out.strip() == "active"
