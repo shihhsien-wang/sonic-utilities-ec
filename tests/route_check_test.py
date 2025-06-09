@@ -191,23 +191,6 @@ class mock_subscriber:
         return self.tbl
 
 
-def subscriber_side_effect(db, tbl):
-    global subscribers_returned
-
-    key = "db_{}_tbl_{}".format(db, tbl)
-    if not key in subscribers_returned:
-        subscribers_returned[key] = mock_subscriber(db, tbl)
-    return subscribers_returned[key]
-
-
-def select_side_effect():
-    global selector_returned
-
-    if not selector_returned:
-        selector_returned = mock_selector()
-    return selector_returned
-
-
 def table_side_effect(db, tbl):
     if not db in tables_returned:
         tables_returned[db] = {}
@@ -226,11 +209,9 @@ def config_db_side_effect(table):
     return tables_returned[CONFIG_DB][table]
 
 
-def set_mock(mock_table, mock_conn, mock_sel, mock_subs, mock_config_db):
+def set_mock(mock_table, mock_conn, mock_config_db):
     mock_conn.side_effect = conn_side_effect
     mock_table.side_effect = table_side_effect
-    mock_sel.side_effect = select_side_effect
-    mock_subs.side_effect = subscriber_side_effect
     mock_config_db.get_table = MagicMock(side_effect=config_db_side_effect)
 
 class TestRouteCheck(object):
@@ -243,12 +224,15 @@ class TestRouteCheck(object):
     @pytest.fixture
     def force_hang(self):
         old_timeout = route_check.TIMEOUT_SECONDS
+        old_coolingtime = route_check.COOLING_TIME
         route_check.TIMEOUT_SECONDS = 5
+        route_check.COOLING_TIME = 10
         mock_selector.EMULATE_HANG = True
 
         yield
 
         route_check.TIMEOUT_SECONDS = old_timeout
+        route_check.COOLING_TIME = old_coolingtime
         mock_selector.EMULATE_HANG = False
 
     @pytest.fixture
@@ -256,11 +240,9 @@ class TestRouteCheck(object):
         mock_config_db = MagicMock()
         with patch("route_check.swsscommon.DBConnector") as mock_conn, \
              patch("route_check.swsscommon.Table") as mock_table, \
-             patch("route_check.swsscommon.Select") as mock_sel, \
-             patch("route_check.swsscommon.SubscriberStateTable") as mock_subs, \
              patch("route_check.swsscommon.ConfigDBConnector", return_value=mock_config_db):
             device_info.get_platform = MagicMock(return_value='unittest')
-            set_mock(mock_table, mock_conn, mock_sel, mock_subs, mock_config_db)
+            set_mock(mock_table, mock_conn, mock_config_db)
             yield
 
     @pytest.mark.parametrize("test_num", TEST_DATA.keys())

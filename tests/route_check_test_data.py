@@ -15,14 +15,14 @@ NEIGH_TABLE = 'NEIGH_TABLE'
 ROUTE_TABLE = 'ROUTE_TABLE'
 VNET_ROUTE_TABLE = 'VNET_ROUTE_TABLE'
 INTF_TABLE = 'INTF_TABLE'
-RT_ENTRY_TABLE = 'ASIC_STATE'
+RT_ENTRY_TABLE = 'ASIC_STATE:SAI_OBJECT_TYPE_ROUTE_ENTRY'
 SEPARATOR = ":"
 DEVICE_METADATA = "DEVICE_METADATA"
 MUX_CABLE = "MUX_CABLE"
 
 LOCALHOST = "localhost"
 
-RT_ENTRY_KEY_PREFIX = 'SAI_OBJECT_TYPE_ROUTE_ENTRY:{\"dest":\"'
+RT_ENTRY_KEY_PREFIX = ':{\"dest\":\"'
 RT_ENTRY_KEY_SUFFIX = '\",\"switch_id\":\"oid:0x21000000000000\",\"vr\":\"oid:0x3000000000023\"}'
 
 DEFAULT_CONFIG_DB = {DEVICE_METADATA: {LOCALHOST: {}}}
@@ -57,45 +57,6 @@ TEST_DATA = {
         }
     },
     "1": {
-        DESCR: "With updates",
-        ARGS: "route_check -m DEBUG -i 1",
-        PRE: {
-            APPL_DB: {
-                ROUTE_TABLE: {
-                    "0.0.0.0/0" : { "ifname": "portchannel0" },
-                    "10.10.196.12/31" : { "ifname": "portchannel0" },
-                    "10.10.196.20/31" : { "ifname": "portchannel0" },
-                    "10.10.196.30/31" : { "ifname": "lo" }
-                },
-                INTF_TABLE: {
-                    "PortChannel1013:10.10.196.24/31": {},
-                    "PortChannel1023:2603:10b0:503:df4::5d/126": {}
-                }
-            },
-            ASIC_DB: {
-                RT_ENTRY_TABLE: {
-                    RT_ENTRY_KEY_PREFIX + "10.10.196.20/31" + RT_ENTRY_KEY_SUFFIX: {},
-                    RT_ENTRY_KEY_PREFIX + "10.10.196.24/32" + RT_ENTRY_KEY_SUFFIX: {},
-                    RT_ENTRY_KEY_PREFIX + "2603:10b0:503:df4::5d/128" + RT_ENTRY_KEY_SUFFIX: {},
-                    RT_ENTRY_KEY_PREFIX + "0.0.0.0/0" + RT_ENTRY_KEY_SUFFIX: {},
-                    RT_ENTRY_KEY_PREFIX + "10.10.10.10/32" + RT_ENTRY_KEY_SUFFIX: {}
-                }
-            }
-        },
-        UPD: {
-            ASIC_DB: {
-                RT_ENTRY_TABLE: {
-                    OP_SET: {
-                        RT_ENTRY_KEY_PREFIX + "10.10.196.12/31" + RT_ENTRY_KEY_SUFFIX: {},
-                    },
-                    OP_DEL: {
-                        RT_ENTRY_KEY_PREFIX + "10.10.10.10/32" + RT_ENTRY_KEY_SUFFIX: {}
-                    }
-                }
-            }
-        }
-    },
-    "2": {
         DESCR: "basic failure one",
         ARGS: "route_check -i 15",
         RET: -1,
@@ -140,7 +101,7 @@ TEST_DATA = {
             ]
         }
     },
-    "3": {
+    "2": {
         DESCR: "basic good one with no args",
         ARGS: "route_check",
         PRE: {
@@ -168,7 +129,7 @@ TEST_DATA = {
             }
         }
     },
-    "4": {
+    "3": {
         DESCR: "Good one with routes on voq inband interface",
         ARGS: "route_check",
         PRE: {
@@ -206,7 +167,7 @@ TEST_DATA = {
             }
         }
     },
-    "5": {
+    "4": {
         DESCR: "local route with nexthop - fail",
         ARGS: "route_check -m INFO -i 1000",
         RET: -1,
@@ -240,7 +201,7 @@ TEST_DATA = {
             ]
         }
     },
-    "6": {
+    "5": {
         DESCR: "Good one with VNET routes",
         ARGS: "route_check",
         PRE: {
@@ -279,7 +240,7 @@ TEST_DATA = {
             }
         }
     },
-    "7": {
+    "6": {
         DESCR: "dualtor standalone tunnel route case",
         ARGS: "route_check",
         PRE: {
@@ -300,7 +261,7 @@ TEST_DATA = {
             }
         }
     },
-    "8": {
+    "7": {
         DESCR: "Good one with VRF routes",
         ARGS: "route_check",
         PRE: {
@@ -327,7 +288,7 @@ TEST_DATA = {
             }
         }
     },
-    "9": {
+    "8": {
         DESCR: "SOC IPs on Libra ToRs should be ignored",
         ARGS: "route_check",
         PRE: {
@@ -362,7 +323,7 @@ TEST_DATA = {
             }
         }
     },
-    "11": {
+    "9": {
         DESCR: "dualtor ignore vlan neighbor route miss case",
         ARGS: "route_check -i 15",
         RET: -1,
@@ -416,7 +377,7 @@ TEST_DATA = {
             ]
         }
     },
-    "12": {
+    "10": {
         DESCR: "IPv4 mapped IPv6 address route check",
         ARGS: "route_check",
         PRE: {

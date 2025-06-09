@@ -13,11 +13,8 @@ How:
     1) Initiate subscribe for ASIC-DB updates.
     2) Read APPL-DB & ASIC-DB
     3) Get the diff.
-    4) If any diff,
-        4.1) Collect subscribe messages for a second
-        4.2) check diff against the subscribe messages
-    5) Rule out local interfaces & default routes
-    6) If still outstanding diffs, report failure.
+    4) Rule out local interfaces & default routes
+    5) If still outstanding diffs, report failure.
 
 To verify:
     Run this tool in SONiC switch and watch the result. In case of failure
@@ -52,10 +49,9 @@ from utilities_common import chassis
 
 APPL_DB_NAME = 'APPL_DB'
 ASIC_DB_NAME = 'ASIC_DB'
-ASIC_TABLE_NAME = 'ASIC_STATE'
-ASIC_KEY_PREFIX = 'SAI_OBJECT_TYPE_ROUTE_ENTRY:'
+ASIC_TABLE_NAME = 'ASIC_STATE:SAI_OBJECT_TYPE_ROUTE_ENTRY'
 
-SUBSCRIBE_WAIT_SECS = 1
+COOLING_TIME = 0
 
 # Max of 2 minutes
 TIMEOUT_SECONDS = 120
@@ -230,48 +226,16 @@ def diff_sorted_lists(t1, t2):
     return t1_miss, t2_miss
 
 
-def checkout_rt_entry(k):
+def extract_normalize_ip(key):
     """
-    helper to filter out correct keys and strip out IP alone.
-    :param ip: key to check as string
+    Extracts and normalizes an IP address from the key if it is not local.
+    :param key: key to check as string
     :return (True, ip) or (False, None)
     """
-    if k.startswith(ASIC_KEY_PREFIX):
-        e = k.lower().split("\"", -1)[3]
-        if not is_local(e):
-            return True, normalize_ip_network(e)
+    ip_str = key.lower().split("\"", -1)[3]
+    if not is_local(ip_str):
+        return True, normalize_ip_network(ip_str)
     return False, None
-
-
-def get_subscribe_updates(selector, subs):
-    """
-    helper to collect subscribe messages for a period
-    :param selector: Selector object to wait
-    :param subs: Subscription object to pop messages
-    :return (add, del) messages as sorted
-    """
-    adds = []
-    deletes = []
-    t_end = time.time() + SUBSCRIBE_WAIT_SECS
-    t_wait = SUBSCRIBE_WAIT_SECS
-
-    while t_wait > 0:
-        selector.select(t_wait)
-        t_wait = int(t_end - time.time())
-        while True:
-            key, op, val = subs.pop()
-            if not key:
-                break
-            res, e = checkout_rt_entry(key)
-            if res:
-                if op == "SET":
-                    adds.append(e)
-                elif op == "DEL":
-                    deletes.append(e)
-
-    print_message(syslog.LOG_DEBUG, "adds={}".format(adds))
-    print_message(syslog.LOG_DEBUG, "dels={}".format(deletes))
-    return (sorted(adds), sorted(deletes))
 
 
 def is_vrf(k):
@@ -302,28 +266,23 @@ def get_routes():
 
 def get_route_entries():
     """
-    helper to read present route entries from ASIC-DB and
-    as well initiate selector for ASIC-DB:ASIC-state updates.
-    :return (selector,  subscriber, <list of sorted routes>)
+    helper to read present route entries from ASIC-DB.
+    :return list of sorted routes
     """
     db = swsscommon.DBConnector(ASIC_DB_NAME, 0)
-    subs = swsscommon.SubscriberStateTable(db, ASIC_TABLE_NAME)
-    print_message(syslog.LOG_DEBUG, "ASIC DB connected")
+    print_message(syslog.LOG_DEBUG, "ASIC DB connected for ROUTE_ENTRY")
+    tbl = swsscommon.Table(db, ASIC_TABLE_NAME)
+    keys = tbl.getKeys()
 
     rt = []
-    while True:
-        k, _, _ = subs.pop()
-        if not k:
-            break
-        res, e = checkout_rt_entry(k)
+    for key in keys:
+        res, e = extract_normalize_ip(key)
         if res:
             rt.append(e)
 
-    print_message(syslog.LOG_DEBUG, json.dumps({"ASIC_ROUTE_ENTRY": sorted(rt)}, indent=4))
-
-    selector = swsscommon.Select()
-    selector.addSelectable(subs)
-    return (selector, subs, sorted(rt))
+    sorted_route = sorted(rt)
+    print_message(syslog.LOG_DEBUG, json.dumps({"ASIC_ROUTE_ENTRY": sorted_route}, indent=4))
+    return sorted_route
 
 
 def get_interfaces():
@@ -611,10 +570,8 @@ def check_routes():
     rt_asic_miss = []
 
     results = {}
-    adds = []
-    deletes = []
 
-    selector, subs, rt_asic = get_route_entries()
+    rt_asic = get_route_entries()
 
     rt_appl = get_routes()
     intf_appl = get_interfaces()
@@ -643,15 +600,9 @@ def check_routes():
     if rt_appl_miss or rt_asic_miss:
         rt_appl_miss, rt_asic_miss = filter_out_vlan_neigh_route_miss(rt_appl_miss, rt_asic_miss)
 
-    if rt_appl_miss or rt_asic_miss:
-        # Look for subscribe updates for a second
-        adds, deletes = get_subscribe_updates(selector, subs)
-
-        # Drop all those for which SET received
-        rt_appl_miss, _ = diff_sorted_lists(rt_appl_miss, adds)
-
-        # Drop all those for which DEL received
-        rt_asic_miss, _ = diff_sorted_lists(rt_asic_miss, deletes)
+    # FIXME: This is a workaround for the test_timeout issue,
+    # as route_check runs so quickly that the timer doesn't have time to interrupt.
+    time.sleep(COOLING_TIME)
 
     if rt_appl_miss:
         results["missed_ROUTE_TABLE_routes"] = rt_appl_miss
@@ -665,8 +616,6 @@ def check_routes():
     if results:
         print_message(syslog.LOG_WARNING, "Failure results: {",  json.dumps(results, indent=4), "}")
         print_message(syslog.LOG_WARNING, "Failed. Look at reported mismatches above")
-        print_message(syslog.LOG_WARNING, "add: ", json.dumps(adds, indent=4))
-        print_message(syslog.LOG_WARNING, "del: ", json.dumps(deletes, indent=4))
         return -1, results
     else:
         print_message(syslog.LOG_INFO, "All good!")
