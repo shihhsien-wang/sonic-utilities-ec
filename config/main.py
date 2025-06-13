@@ -6945,11 +6945,14 @@ def ntp(ctx):
 
 @ntp.command('add')
 @click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
+@click.option('--type', 'ntp_type', help="Association type (e.g., server, peer, pool)")
+@click.option('--version', help="NTP version")
+@click.option('--key', help="Key ID for NTP authentication")
 @click.pass_context
-def add_ntp_server(ctx, ntp_ip_address):
+def add_ntp_server(ctx, ntp_ip_address, ntp_type, version, key):
     """ Add NTP server IP """
     if ADHOC_VALIDATION:
-        if not clicommon.is_ipaddress(ntp_ip_address):
+        if not clicommon.is_ipaddress(ntp_ip_address) and not clicommon.is_fqdn(ntp_ip_address) :
             ctx.fail('Invalid IP address')
     db = ValidatedConfigDBConnector(ctx.obj['db'])
     ntp_servers = db.get_table("NTP_SERVER")
@@ -6957,10 +6960,17 @@ def add_ntp_server(ctx, ntp_ip_address):
         click.echo("NTP server {} is already configured".format(ntp_ip_address))
         return
     else:
+        data = {'resolve_as': ntp_ip_address}
+        if ntp_type:
+            data['association_type'] = ntp_type
+        else:
+            data['association_type'] = 'server'
+        if version:
+            data['version'] = version
+        if key:
+            data['key'] = key
         try:
-            db.set_entry('NTP_SERVER', ntp_ip_address,
-                         {'resolve_as': ntp_ip_address,
-                          'association_type': 'server'})
+            db.set_entry('NTP_SERVER', ntp_ip_address, data)
         except ValueError as e:
             ctx.fail("Invalid ConfigDB. Error: {}".format(e))
         click.echo("NTP server {} added to configuration".format(ntp_ip_address))

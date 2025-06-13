@@ -9070,14 +9070,55 @@ This command is used to add a NTP server IP address to the NTP server list.  Not
 
 - Usage:
   ```
-  config ntp add <ip_address>
+  config ntp add <ip_address> [--type <server|pool>] [--version <3|4>] [--key <key_id>]
   ```
+  - Parameters:
+    - ip_address: NTP server IP address or hostname.
+    - --type: Specifies the NTP association type (e.g., server, peer, pool).
+    - --version: Specifies the NTP protocol version (e.g., 3, 4).
+    - --key: Specifies the authentication key ID to use for the server.
+
 
 - Example:
   ```
-  admin@sonic:~$ sudo config ntp add 9.9.9.9
+  admin@sonic:~$ sudo config ntp add 9.9.9.9 --type server --version 4 --key 1234
   NTP server 9.9.9.9 added to configuration
   Restarting ntp-config service...
+  ```
+
+**config ntp key add**
+
+This command adds a new NTP authentication key.
+
+- Usage:
+  ```
+  config ntp key add <key_id> <key_value> [--type <md5|sha1|sha256|sha384|sha512>] [--trusted <yes|no>]
+  ```
+  - Parameters:
+    - key_id: The key identifier (1-65535).
+    - key_value: The key content (string).
+    - --type: The encryption type for the key (default: md5).
+    - --trusted: Whether this key is trusted (default: no).
+
+- Example:
+  ```
+  admin@sonic:~$ sudo config ntp key add 1234 mysecretkey --type sha256 --trusted yes
+  ```
+
+**config ntp key del**
+
+This command deletes an NTP authentication key.
+
+- Usage:
+  ```
+  config ntp key del <key_id>
+  ```
+  - Parameters:
+    - key_id: The key identifier to delete.
+
+- Example:
+  ```
+  admin@sonic:~$ sudo config ntp key del 1234
   ```
 
 **config ntp delete**

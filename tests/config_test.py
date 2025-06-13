@@ -2217,6 +2217,54 @@ class TestConfigNtp(object):
         print(result.output)
         assert "Invalid ConfigDB. Error" in result.output
 
+    @patch("config.main.ValidatedConfigDBConnector")
+    def test_add_ntp_server_with_type_version_key(self, mock_db_connector):
+        runner = CliRunner()
+        db_conn_instance = mock_db_connector.return_value
+        db_conn_instance.get_table.return_value = {}  # No existing NTP servers
+
+        result = runner.invoke(
+            config.config.commands["ntp"],
+            ["add", "1.2.3.4", "--type", "server", "--version", "4", "--key", "42"]
+        )
+
+        assert result.exit_code == 0
+        db_conn_instance.set_entry.assert_called_once_with(
+            'NTP_SERVER', '1.2.3.4', {'resolve_as': '1.2.3.4', 'association_type': 'server', 'version': '4', 'key': '42'}
+        )
+
+    @patch("config.main.ValidatedConfigDBConnector")
+    def test_add_ntp_server_with_type_pool(self, mock_db_connector):
+        runner = CliRunner()
+        db_conn_instance = mock_db_connector.return_value
+        db_conn_instance.get_table.return_value = {}  # No existing NTP servers
+
+        result = runner.invoke(
+            config.config.commands["ntp"],
+            ["add", "pool.ntp.org", "--type", "pool"]
+        )
+
+        assert result.exit_code == 0
+        db_conn_instance.set_entry.assert_called_once_with(
+            'NTP_SERVER', 'pool.ntp.org', {'resolve_as': 'pool.ntp.org', 'association_type': 'pool'}
+        )
+
+    @patch("config.main.ValidatedConfigDBConnector")
+    def test_add_ntp_server_default_options(self, mock_db_connector):
+        runner = CliRunner()
+        db_conn_instance = mock_db_connector.return_value
+        db_conn_instance.get_table.return_value = {}  # No existing NTP servers
+
+        result = runner.invoke(
+            config.config.commands["ntp"],
+            ["add", "2.3.4.5"]
+        )
+
+        assert result.exit_code == 0
+        db_conn_instance.set_entry.assert_called_once_with(
+            'NTP_SERVER', '2.3.4.5', {'resolve_as': '2.3.4.5', 'association_type': 'server'}
+        )
+
     @classmethod
     def teardown_class(cls):
         print("TEARDOWN")
