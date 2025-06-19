@@ -9070,18 +9070,19 @@ This command is used to add a NTP server IP address to the NTP server list.  Not
 
 - Usage:
   ```
-  config ntp add <ip_address> [--type <server|pool>] [--version <3|4>] [--key <key_id>]
+  config ntp add <ip_address> [--type <server|pool>] [--version <3|4>] [--key <key_id>] [--username <username>]
   ```
   - Parameters:
     - ip_address: NTP server IP address or hostname.
     - --type: Specifies the NTP association type (e.g., server, peer, pool).
     - --version: Specifies the NTP protocol version (e.g., 3, 4).
     - --key: Specifies the authentication key ID to use for the server.
+    - --username <username>: Specifies the username for NTP server authentication, if required by the server.
 
 
 - Example:
   ```
-  admin@sonic:~$ sudo config ntp add 9.9.9.9 --type server --version 4 --key 1234
+  admin@sonic:~$ sudo config ntp add 9.9.9.9 --type server --version 4 --key 1234 --username ntp_user
   NTP server 9.9.9.9 added to configuration
   Restarting ntp-config service...
   ```

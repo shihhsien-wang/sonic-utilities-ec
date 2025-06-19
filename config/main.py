@@ -6943,19 +6943,79 @@ def ntp(ctx):
     config_db.connect()
     ctx.obj = {'db': config_db}
 
+@ntp.group()
+def key():
+    '''NTP authentication key management'''
+    pass
+
+@key.command("add")
+@click.argument("key_id", type=click.IntRange(1, 65535))
+@click.argument("key_value", type=str)
+@click.option("--type", "keytype", default="md5", type=click.Choice(['md5', 'sha1', 'sha256', 'sha384', 'sha512']), help="NTP key encryption type (default: md5)")
+@click.option("--trusted", default="no", type=click.Choice(['yes', 'no']), help="Whether this NTP key is trusted (default: no)")
+@clicommon.pass_db
+def add_ntp_key(db, key_id, key_value, keytype, trusted):
+    '''Add NTP authentication key'''
+    cfgdb_conn = ValidatedConfigDBConnector(db.cfgdb)
+
+    # Base64 encode the key_value
+    encoded_key_value = base64.b64encode(key_value.encode('utf-8')).decode('ascii')
+
+    entry = {
+        "type": keytype,
+        "value": encoded_key_value,
+        "trusted": trusted
+    }
+
+    try:
+        cfgdb_conn.set_entry("NTP_KEY", str(key_id), entry)
+    except Exception as e:
+        click.echo(f"Error adding NTP key {key_id}: {e}")
+        raise click.Abort()
+    click.echo(f"NTP key {key_id} added successfully.")
+    try:
+        click.echo("Restarting ntp-config service...")
+        clicommon.run_command(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
+    except SystemExit as e:
+        click.fail(f"Restart service ntp-config failed with error {e}")
+
+@key.command("del")
+@click.argument("key_id", type=click.IntRange(1, 65535))
+@clicommon.pass_db
+def del_ntp_key(db, key_id):
+    '''Delete NTP authentication key'''
+    cfgdb_conn = ValidatedConfigDBConnector(db.cfgdb)
+
+    if not cfgdb_conn.get_entry("NTP_KEY", str(key_id)):
+        click.echo(f"Error: NTP key {key_id} not found.")
+        raise click.Abort()
+
+    try:
+        cfgdb_conn.set_entry("NTP_KEY", str(key_id), None)
+    except Exception as e:
+        click.echo(f"Error deleting NTP key {key_id}: {e}")
+        raise click.Abort()
+    click.echo(f"NTP key {key_id} deleted successfully.")
+    try:
+        click.echo("Restarting ntp-config service...")
+        clicommon.run_command(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
+    except SystemExit as e:
+        click.fail(f"Restart service ntp-config failed with error {e}")
+
 @ntp.command('add')
 @click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
 @click.option('--type', 'ntp_type', help="Association type (e.g., server, peer, pool)")
 @click.option('--version', help="NTP version")
 @click.option('--key', help="Key ID for NTP authentication")
-@click.pass_context
-def add_ntp_server(ctx, ntp_ip_address, ntp_type, version, key):
+@click.option('--username', default=None, help='Username for NTP server authentication.')
+@clicommon.pass_db # Changed to pass_db for consistency
+def add_ntp_server(db, ntp_ip_address, ntp_type, version, key, username): # Changed ctx to db
     """ Add NTP server IP """
     if ADHOC_VALIDATION:
         if not clicommon.is_ipaddress(ntp_ip_address) and not clicommon.is_fqdn(ntp_ip_address) :
-            ctx.fail('Invalid IP address')
-    db = ValidatedConfigDBConnector(ctx.obj['db'])
-    ntp_servers = db.get_table("NTP_SERVER")
+            click.get_current_context().fail('Invalid IP address') # Changed to use click.get_current_context()
+    cfgdb_conn = ValidatedConfigDBConnector(db.cfgdb) # Use db.cfgdb
+    ntp_servers = cfgdb_conn.get_table("NTP_SERVER")
     if ntp_ip_address in ntp_servers:
         click.echo("NTP server {} is already configured".format(ntp_ip_address))
         return
@@ -6969,40 +7029,42 @@ def add_ntp_server(ctx, ntp_ip_address, ntp_type, version, key):
             data['version'] = version
         if key:
             data['key'] = key
+        if username:
+            data['username'] = username
         try:
-            db.set_entry('NTP_SERVER', ntp_ip_address, data)
+            cfgdb_conn.set_entry('NTP_SERVER', ntp_ip_address, data) # Use cfgdb_conn
         except ValueError as e:
-            ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+            click.get_current_context().fail(f"Invalid ConfigDB. Error: {e}") # Use click.get_current_context()
         click.echo("NTP server {} added to configuration".format(ntp_ip_address))
         try:
             click.echo("Restarting ntp-config service...")
             clicommon.run_command(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
         except SystemExit as e:
-            ctx.fail("Restart service ntp-config failed with error {}".format(e))
+            click.get_current_context().fail(f"Restart service ntp-config failed with error {e}") # Use click.get_current_context()
 
 @ntp.command('del')
 @click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
-@click.pass_context
-def del_ntp_server(ctx, ntp_ip_address):
+@clicommon.pass_db # Changed to pass_db for consistency
+def del_ntp_server(db, ntp_ip_address): # Changed ctx to db
     """ Delete NTP server IP """
     if ADHOC_VALIDATION:
         if not clicommon.is_ipaddress(ntp_ip_address):
-            ctx.fail('Invalid IP address')
-    db = ValidatedConfigDBConnector(ctx.obj['db'])
-    ntp_servers = db.get_table("NTP_SERVER")
+            click.get_current_context().fail('Invalid IP address') # Use click.get_current_context()
+    cfgdb_conn = ValidatedConfigDBConnector(db.cfgdb) # Use db.cfgdb
+    ntp_servers = cfgdb_conn.get_table("NTP_SERVER")
     if ntp_ip_address in ntp_servers:
         try:
-            db.set_entry('NTP_SERVER', '{}'.format(ntp_ip_address), None)
+            cfgdb_conn.set_entry('NTP_SERVER', '{}'.format(ntp_ip_address), None) # Use cfgdb_conn
         except JsonPatchConflict as e:
-            ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+            click.get_current_context().fail(f"Invalid ConfigDB. Error: {e}") # Use click.get_current_context()
         click.echo("NTP server {} removed from configuration".format(ntp_ip_address))
     else:
-        ctx.fail("NTP server {} is not configured.".format(ntp_ip_address))
+        click.get_current_context().fail("NTP server {} is not configured.".format(ntp_ip_address)) # Use click.get_current_context()
     try:
         click.echo("Restarting ntp-config service...")
         clicommon.run_command(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
     except SystemExit as e:
-        ctx.fail("Restart service ntp-config failed with error {}".format(e))
+        click.get_current_context().fail(f"Restart service ntp-config failed with error {e}") # Use click.get_current_context()
 
 #
 # 'sflow' group ('config sflow ...')

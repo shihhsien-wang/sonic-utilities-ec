@@ -2218,14 +2218,19 @@ class TestConfigNtp(object):
         assert "Invalid ConfigDB. Error" in result.output
 
     @patch("config.main.ValidatedConfigDBConnector")
-    def test_add_ntp_server_with_type_version_key(self, mock_db_connector):
+    @patch("config.main.clicommon.run_command")
+    def test_add_ntp_server_with_type_version_key(self, mock_run_command, mock_db_connector):
         runner = CliRunner()
         db_conn_instance = mock_db_connector.return_value
         db_conn_instance.get_table.return_value = {}  # No existing NTP servers
+        db = Db()
+        obj = {'db': db.cfgdb}
+
 
         result = runner.invoke(
-            config.config.commands["ntp"],
-            ["add", "1.2.3.4", "--type", "server", "--version", "4", "--key", "42"]
+            config.config.commands["ntp"].commands["add"],
+            ["1.2.3.4", "--type", "server", "--version", "4", "--key", "42"],
+            obj=obj
         )
 
         assert result.exit_code == 0
@@ -2234,14 +2239,18 @@ class TestConfigNtp(object):
         )
 
     @patch("config.main.ValidatedConfigDBConnector")
-    def test_add_ntp_server_with_type_pool(self, mock_db_connector):
+    @patch("config.main.clicommon.run_command")
+    def test_add_ntp_server_with_type_pool(self, mock_run_command, mock_db_connector):
         runner = CliRunner()
         db_conn_instance = mock_db_connector.return_value
         db_conn_instance.get_table.return_value = {}  # No existing NTP servers
+        db = Db()
+        obj = {'db': db.cfgdb}
 
         result = runner.invoke(
-            config.config.commands["ntp"],
-            ["add", "pool.ntp.org", "--type", "pool"]
+            config.config.commands["ntp"].commands["add"],
+            ["pool.ntp.org", "--type", "pool"],
+            obj=obj
         )
 
         assert result.exit_code == 0
@@ -2250,14 +2259,18 @@ class TestConfigNtp(object):
         )
 
     @patch("config.main.ValidatedConfigDBConnector")
-    def test_add_ntp_server_default_options(self, mock_db_connector):
+    @patch("config.main.clicommon.run_command")
+    def test_add_ntp_server_default_options(self, mock_run_command, mock_db_connector):
         runner = CliRunner()
         db_conn_instance = mock_db_connector.return_value
         db_conn_instance.get_table.return_value = {}  # No existing NTP servers
+        db = Db()
+        obj = {'db': db.cfgdb}
 
         result = runner.invoke(
-            config.config.commands["ntp"],
-            ["add", "2.3.4.5"]
+            config.config.commands["ntp"].commands["add"],
+            ["2.3.4.5"],
+            obj=obj
         )
 
         assert result.exit_code == 0
@@ -2265,9 +2278,146 @@ class TestConfigNtp(object):
             'NTP_SERVER', '2.3.4.5', {'resolve_as': '2.3.4.5', 'association_type': 'server'}
         )
 
+    @patch("config.main.ValidatedConfigDBConnector")
+    @patch("config.main.clicommon.run_command")
+    @patch("config.main.validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=False))
+    def test_add_ntp_server_with_username(self, mock_run_command, mock_db_connector):
+        config.ADHOC_VALIDATION = True
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+
+        db_conn_instance = mock_db_connector.return_value
+        db_conn_instance.get_table.return_value = {}
+
+        server_ip = "3.4.5.6"
+        test_username = "ntpuser1"
+
+        # Test with username
+        result = runner.invoke(config.config.commands["ntp"].commands["add"], [server_ip, "--username", test_username], obj=obj)
+
+        print(f"Output: {result.output}, ExitCode: {result.exit_code}")
+        if result.exception:
+            print(f"Exception: {traceback.format_exc(result.exc_info[2])}")
+        assert result.exit_code == 0
+
+        expected_data_with_username = {'resolve_as': server_ip, 'username': test_username, 'association_type': 'server'}
+        mock_db_connector.return_value.set_entry.assert_called_with('NTP_SERVER', server_ip, expected_data_with_username)
+
+        # Test without username (ensure it doesn't carry over or add empty username)
+        mock_db_connector.return_value.set_entry.reset_mock()
+        server_ip_no_username = "3.4.5.7"
+        db_conn_instance.get_table.return_value = {server_ip: expected_data_with_username} # Simulate first server exists
+
+        result_no_username = runner.invoke(config.config.commands["ntp"].commands["add"], [server_ip_no_username], obj=obj)
+        assert result_no_username.exit_code == 0
+
+        # Assert that the second call for server_ip_no_username does not include 'username'
+        # and has the default 'association_type': 'server'
+        expected_data_no_username = {'resolve_as': server_ip_no_username, 'association_type': 'server'}
+        mock_db_connector.return_value.set_entry.assert_called_with('NTP_SERVER', server_ip_no_username, expected_data_no_username)
+
+    @patch("config.main.clicommon.run_command")
+    @patch("config.main.ValidatedConfigDBConnector")
+    @patch("config.main.validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=False))
+    def test_add_ntp_key_specific(self, mock_db_connector, mock_run_command):
+        config.ADHOC_VALIDATION = True
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+
+        db_conn_instance = mock_db_connector.return_value
+
+        result = runner.invoke(config.config.commands["ntp"].commands["key"].commands["add"],
+                               ["10", "mysecretkey", "--type", "sha1", "--trusted", "yes"], obj=obj)
+
+        assert result.exit_code == 0
+        expected_value = base64.b64encode("mysecretkey".encode('utf-8')).decode('ascii')
+        db_conn_instance.set_entry.assert_called_with("NTP_KEY", "10", {'type': 'sha1', 'value': expected_value, 'trusted': 'yes'})
+        mock_run_command.assert_called_with(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
+
+    @patch("config.main.clicommon.run_command")
+    @patch("config.main.ValidatedConfigDBConnector")
+    @patch("config.main.validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=False))
+    def test_add_ntp_key_defaults(self, mock_db_connector, mock_run_command):
+        config.ADHOC_VALIDATION = True
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+        db_conn_instance = mock_db_connector.return_value
+
+        result = runner.invoke(config.config.commands["ntp"].commands["key"].commands["add"],
+                               ["11", "anotherkey"], obj=obj)
+
+        assert result.exit_code == 0
+        expected_value = base64.b64encode("anotherkey".encode('utf-8')).decode('ascii')
+        db_conn_instance.set_entry.assert_called_with("NTP_KEY", "11", {'type': 'md5', 'value': expected_value, 'trusted': 'no'})
+        mock_run_command.assert_called_with(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
+
+    def test_add_ntp_key_invalid_id(self):
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+        result_low = runner.invoke(config.config.commands["ntp"].commands["key"].commands["add"],
+                                   ["0", "invalidkey"], obj=obj)
+        assert result_low.exit_code != 0
+        assert "Error: Invalid value for 'KEY_ID'" in result_low.output
+
+        result_high = runner.invoke(config.config.commands["ntp"].commands["key"].commands["add"],
+                                    ["70000", "invalidkey_high"], obj=obj)
+        assert result_high.exit_code != 0
+        assert "Error: Invalid value for 'KEY_ID'" in result_high.output
+
+    @patch("config.main.clicommon.run_command")
+    @patch("config.main.ValidatedConfigDBConnector")
+    @patch("config.main.validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=False))
+    def test_del_ntp_key_existing(self, mock_db_connector, mock_run_command):
+        config.ADHOC_VALIDATION = True
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+        db_conn_instance = mock_db_connector.return_value
+        db_conn_instance.get_entry.return_value = {'type': 'md5', 'value': 'c2VjcmV0', 'trusted': 'no'} # Mock existing key
+
+        result = runner.invoke(config.config.commands["ntp"].commands["key"].commands["del"], ["12"], obj=obj)
+
+        assert result.exit_code == 0
+        db_conn_instance.set_entry.assert_called_with("NTP_KEY", "12", None)
+        mock_run_command.assert_called_with(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
+
+    @patch("config.main.clicommon.run_command")
+    @patch("config.main.ValidatedConfigDBConnector")
+    @patch("config.main.validated_config_db_connector.device_info.is_yang_config_validation_enabled", mock.Mock(return_value=False))
+    def test_del_ntp_key_non_existing(self, mock_db_connector, mock_run_command):
+        config.ADHOC_VALIDATION = True
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+        db_conn_instance = mock_db_connector.return_value
+        db_conn_instance.get_entry.return_value = None # Mock non-existing key
+
+        result = runner.invoke(config.config.commands["ntp"].commands["key"].commands["del"], ["13"], obj=obj)
+
+        assert result.exit_code != 0 # click.Abort() leads to exit code 1
+        assert "Error: NTP key 13 not found." in result.output
+        mock_run_command.assert_not_called()
+
+    def test_del_ntp_key_invalid_id(self):
+        runner = CliRunner()
+        db = Db()
+        obj = {'db': db.cfgdb}
+        result_low = runner.invoke(config.config.commands["ntp"].commands["key"].commands["del"], ["0"], obj=obj)
+        assert result_low.exit_code != 0
+        assert "Error: Invalid value for 'KEY_ID'" in result_low.output
+
+        result_high = runner.invoke(config.config.commands["ntp"].commands["key"].commands["del"], ["70000"], obj=obj)
+        assert result_high.exit_code != 0
+        assert "Error: Invalid value for 'KEY_ID'" in result_high.output
+
     @classmethod
     def teardown_class(cls):
         print("TEARDOWN")
+import base64
 
 
 class TestConfigPfcwd(object):
