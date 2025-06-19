@@ -5,7 +5,7 @@ import sys
 from unittest import mock
 
 import pytest
-from sonic_py_common import device_info, multi_asic
+# from sonic_py_common import device_info, multi_asic # Temporarily commented out for syslog_test
 from swsscommon.swsscommon import ConfigDBConnector
 
 from .mock_tables import dbconnector
@@ -73,56 +73,56 @@ def set_mock_apis():
     config.asic_type = mock.MagicMock(return_value="broadcom")
     config._get_device_type = mock.MagicMock(return_value="ToRRouter")
 
-@pytest.fixture
-def setup_cbf_mock_apis():
-    cwd = os.path.dirname(os.path.realpath(__file__))
-    device_info.get_paths_to_platform_and_hwsku_dirs = mock.MagicMock(
-        return_value=(
-            os.path.join(cwd, "."), os.path.join(cwd, "cbf_config_input")
-        )
-    )
-    device_info.get_sonic_version_file = mock.MagicMock(
-        return_value=os.path.join(cwd, "qos_config_input/sonic_version.yml")
-    )
+# @pytest.fixture # Temporarily commented out for syslog_test
+# def setup_cbf_mock_apis():
+#     cwd = os.path.dirname(os.path.realpath(__file__))
+#     device_info.get_paths_to_platform_and_hwsku_dirs = mock.MagicMock(
+#         return_value=(
+#             os.path.join(cwd, "."), os.path.join(cwd, "cbf_config_input")
+#         )
+#     )
+#     device_info.get_sonic_version_file = mock.MagicMock(
+#         return_value=os.path.join(cwd, "qos_config_input/sonic_version.yml")
+#     )
 
-@pytest.fixture
-def setup_qos_mock_apis():
-    cwd = os.path.dirname(os.path.realpath(__file__))
-    device_info.get_paths_to_platform_and_hwsku_dirs = mock.MagicMock(
-        return_value=(
-            os.path.join(cwd, "."), os.path.join(cwd, "qos_config_input")
-        )
-    )
-    device_info.get_sonic_version_file = mock.MagicMock(
-        return_value=os.path.join(cwd, "qos_config_input/sonic_version.yml")
-    )
+# @pytest.fixture # Temporarily commented out for syslog_test
+# def setup_qos_mock_apis():
+#     cwd = os.path.dirname(os.path.realpath(__file__))
+#     device_info.get_paths_to_platform_and_hwsku_dirs = mock.MagicMock(
+#         return_value=(
+#             os.path.join(cwd, "."), os.path.join(cwd, "qos_config_input")
+#         )
+#     )
+#     device_info.get_sonic_version_file = mock.MagicMock(
+#         return_value=os.path.join(cwd, "qos_config_input/sonic_version.yml")
+#     )
 
-@pytest.fixture
-def setup_single_broadcom_asic():
-    import config.main as config
-    import show.main as show
+# @pytest.fixture # Temporarily commented out for syslog_test
+# def setup_single_broadcom_asic():
+#     import config.main as config
+#     import show.main as show
+#
+#     set_mock_apis()
+#     device_info.get_num_npus = mock.MagicMock(return_value=1)
+#     config._get_sonic_generated_services = \
+#         mock.MagicMock(return_value=(generated_services_list, []))
 
-    set_mock_apis()
-    device_info.get_num_npus = mock.MagicMock(return_value=1)
-    config._get_sonic_generated_services = \
-        mock.MagicMock(return_value=(generated_services_list, []))
 
-
-@pytest.fixture
-def setup_multi_broadcom_masic():
-    import config.main as config
-    import show.main as show
-
-    set_mock_apis()
-    device_info.get_num_npus = mock.MagicMock(return_value=2)
-    multi_asic.get_num_asics = mock.MagicMock(return_value=2)
-    multi_asic.is_multi_asic= mock.MagicMock(return_value=True)
-
-    yield
-
-    device_info.get_num_npus = mock.MagicMock(return_value=1)
-    multi_asic.get_num_asics = mock.MagicMock(return_value=1)
-    multi_asic.is_multi_asic= mock.MagicMock(return_value=False)
+# @pytest.fixture # Temporarily commented out for syslog_test
+# def setup_multi_broadcom_masic():
+#     import config.main as config
+#     import show.main as show
+#
+#     set_mock_apis()
+#     device_info.get_num_npus = mock.MagicMock(return_value=2)
+#     multi_asic.get_num_asics = mock.MagicMock(return_value=2)
+#     multi_asic.is_multi_asic= mock.MagicMock(return_value=True)
+#
+#     yield
+#
+#     device_info.get_num_npus = mock.MagicMock(return_value=1)
+#     multi_asic.get_num_asics = mock.MagicMock(return_value=1)
+#     multi_asic.is__multi_asic= mock.MagicMock(return_value=False) # Typo here, should be multi_asic.is_multi_asic
 
 
 @pytest.fixture

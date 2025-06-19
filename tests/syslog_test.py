@@ -242,3 +242,94 @@ class TestSyslog:
         logger.debug(result.exit_code)
         assert result.exit_code == SUCCESS
         assert result.output == assert_show_output.show_syslog
+
+    @mock.patch("utilities_common.cli.run_command", mock.MagicMock(return_value=None))
+    @mock.patch("config.syslog.exec_cmd", mock.MagicMock(side_effect=config_mock.exec_cmd_mock_default_vrf_ip_not_found))
+    def test_config_syslog_source_ip_not_in_default_vrf(self):
+        dbconnector.dedicated_dbs["CONFIG_DB"] = os.path.join(mock_db_path, "vrf_cdb")
+        db = Db()
+        runner = CliRunner()
+
+        result = runner.invoke(
+            config.config.commands["syslog"].commands["add"],
+            ["5.5.5.5", "--source", "10.0.0.100"], obj=db
+        )
+
+        logger.debug("\n" + result.output)
+        logger.debug(result.exit_code)
+        assert "IP doesn't exist in Linux default VRF" in result.output
+        assert result.exit_code == ERROR2
+
+    @mock.patch("utilities_common.cli.run_command", mock.MagicMock(return_value=None))
+    @mock.patch("config.syslog.exec_cmd", mock.MagicMock(side_effect=config_mock.exec_cmd_mock_specified_vrf_ip_not_found))
+    def test_config_syslog_source_ip_not_in_specified_vrf(self):
+        dbconnector.dedicated_dbs["CONFIG_DB"] = os.path.join(mock_db_path, "vrf_cdb")
+        db = Db()
+        runner = CliRunner()
+
+        result = runner.invoke(
+            config.config.commands["syslog"].commands["add"],
+            ["6.6.6.6", "--source", "20.0.0.200", "--vrf", "Vrf-Data"], obj=db
+        )
+
+        logger.debug("\n" + result.output)
+        logger.debug(result.exit_code)
+        assert "IP doesn't exist in Linux Vrf-Data VRF" in result.output
+        assert result.exit_code == ERROR2
+
+    @mock.patch("utilities_common.cli.run_command", mock.MagicMock(return_value=None))
+    def test_config_syslog_add_duplicate_server(self):
+        # Ensure a clean CONFIG_DB state for this test
+        dbconnector.dedicated_dbs["CONFIG_DB"] = None
+        db = Db()
+        runner = CliRunner()
+
+        server_ip = "7.7.7.7"
+
+        # First add operation
+        result = runner.invoke(
+            config.config.commands["syslog"].commands["add"],
+            [server_ip], obj=db
+        )
+        logger.debug(f"\nFirst add operation output:\n{result.output}")
+        logger.debug(f"First add operation exit code: {result.exit_code}")
+        assert result.exit_code == SUCCESS
+
+        # Attempt to add the same server again
+        result = runner.invoke(
+            config.config.commands["syslog"].commands["add"],
+            [server_ip], obj=db
+        )
+        logger.debug(f"\nSecond add operation output:\n{result.output}")
+        logger.debug(f"Second add operation exit code: {result.exit_code}")
+
+        # server_validator(..., is_exist=False) is called for the add command.
+        # If is_exist_in_db returns True, it raises UsageError with:
+        # f"Invalid value for {param_name}: {value} is a valid syslog server"
+        expected_error_message = f"Invalid value for server_ip_address: {server_ip} is a valid syslog server"
+        assert expected_error_message in result.output
+        assert result.exit_code == ERROR2
+
+    @mock.patch("utilities_common.cli.run_command", mock.MagicMock(return_value=None))
+    def test_config_syslog_delete_non_existent_server(self):
+        # Ensure a clean CONFIG_DB state for this test, so the server is guaranteed not to exist
+        dbconnector.dedicated_dbs["CONFIG_DB"] = None
+        db = Db()
+        runner = CliRunner()
+
+        server_ip_to_delete = "8.8.8.8"
+
+        # Attempt to delete a non-existent server
+        result = runner.invoke(
+            config.config.commands["syslog"].commands["del"],
+            [server_ip_to_delete], obj=db
+        )
+        logger.debug(f"\nDelete non-existent server output:\n{result.output}")
+        logger.debug(f"Delete non-existent server exit code: {result.exit_code}")
+
+        # For the 'del' command, server_validator is called with is_exist=True.
+        # If is_exist_in_db returns False (server doesn't exist), it raises UsageError with:
+        # f"Invalid value for {param_name}: {value} is not a valid syslog server"
+        expected_error_message = f"Invalid value for server_ip_address: {server_ip_to_delete} is not a valid syslog server"
+        assert expected_error_message in result.output
+        assert result.exit_code == ERROR2
