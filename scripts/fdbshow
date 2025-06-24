@@ -100,10 +100,10 @@ class FdbShow(object):
             br_port_id = ent["SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID"][oid_pfx:]
             ent_type = ent["SAI_FDB_ENTRY_ATTR_TYPE"]
             fdb_type = ['Dynamic','Static'][ent_type == "SAI_FDB_ENTRY_TYPE_STATIC"]
-            if br_port_id not in self.if_br_oid_map and b"SAI_FDB_ENTRY_ATTR_ENDPOINT_IP" not in ent:
+            if br_port_id not in self.if_br_oid_map and "SAI_FDB_ENTRY_ATTR_ENDPOINT_IP" not in ent:
                 continue
-            if b"SAI_FDB_ENTRY_ATTR_ENDPOINT_IP" in ent and ent[b"SAI_FDB_ENTRY_ATTR_ENDPOINT_IP"]!='0.0.0.0':
-                if_name = "VxLAN DIP: %s" %(ent[b"SAI_FDB_ENTRY_ATTR_ENDPOINT_IP"])
+            if "SAI_FDB_ENTRY_ATTR_ENDPOINT_IP" in ent and ent["SAI_FDB_ENTRY_ATTR_ENDPOINT_IP"]!='0.0.0.0':
+                if_name = "VxLAN DIP: %s" %(ent["SAI_FDB_ENTRY_ATTR_ENDPOINT_IP"])
             else:
                 port_id = self.if_br_oid_map[br_port_id]
                 if port_id in self.if_oid_map:
