@@ -974,36 +974,51 @@ class AclLoader(object):
         :param session_name: Optional. Mirror session name. Filter sessions by specified name.
         :return:
         """
-        erspan_header = ("Name", "Status", "SRC IP", "DST IP", "GRE", "DSCP", "TTL", "Queue",
+        erspan_header = ("Name", "Status", "SRC IP", "DST IP", "GRE", "DSCP", "TTL",
                             "Policer", "Monitor Port", "SRC Port", "Direction")
-        span_header = ("Name", "Status", "DST Port", "SRC Port", "Direction", "Queue", "Policer")
+        span_header = ("Name", "Status", "DST Port", "SRC Port", "Direction", "Policer")
 
         asic_type = device_info.get_sonic_version_info().get('asic_type', '')
+
+        if asic_type in ('barefoot', 'broadcom'):
+            erspan_header = ("Name", "Status", "SRC IP", "DST IP", "GRE", "DSCP", "TTL", "Queue",
+                                "Policer", "Monitor Port", "SRC Port", "Direction")
+            span_header = ("Name", "Status", "DST Port", "SRC Port", "Direction", "Queue", "Policer")
+
         erspan_data = []
         span_data = []
+
         for key, val in self.get_sessions_db_info().items():
             if session_name and key != session_name:
                 continue
 
+            queue = ""
             if asic_type == 'barefoot':
                 queue = "UC{}".format(val.get("queue", "0"))
-            if asic_type == 'broadcom':
+            elif asic_type == 'broadcom':
                 queue = "MC0"
 
             if val.get("type") == "SPAN":
-                span_data.append([key, val.get("status", ""), val.get("dst_port", ""),
-                                       val.get("src_port", ""), val.get("direction", "").lower(),
-                                       queue, val.get("policer", "")])
+                span_row = [key, val.get("status", ""), val.get("dst_port", ""),
+                            val.get("src_port", ""), val.get("direction", "").lower()]
+                if asic_type in ('barefoot', 'broadcom'):
+                    span_row.append(queue)
+                span_row.append(val.get("policer", ""))
+                span_data.append(span_row)
             else:
                 gre_type = val.get("gre_type", "")
                 if gre_type == "":
                     gre_type = "0x88be"
                 gre_type = str(hex(int(gre_type))) if gre_type.isdigit() else gre_type
 
-                erspan_data.append([key, val.get("status", ""), val.get("src_ip", ""),
-                                         val.get("dst_ip", ""), gre_type, val.get("dscp", ""),
-                                         val.get("ttl", ""), queue, val.get("policer", ""),
-                                         val.get("monitor_port", ""), val.get("src_port", ""), val.get("direction", "").lower()])
+                erspan_row = [key, val.get("status", ""), val.get("src_ip", ""),
+                              val.get("dst_ip", ""), gre_type, val.get("dscp", ""),
+                              val.get("ttl", "")]
+                if asic_type in ('barefoot', 'broadcom'):
+                    erspan_row.append(queue)
+                erspan_row.extend([val.get("policer", ""), val.get("monitor_port", ""),
+                                   val.get("src_port", ""), val.get("direction", "").lower()])
+                erspan_data.append(erspan_row)
 
         print("ERSPAN Sessions")
         erspan_data = natsorted(erspan_data)
