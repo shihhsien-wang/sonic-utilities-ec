@@ -267,7 +267,7 @@ def breakout_Ports(cm, delPorts=list(), portJson=dict(), force=False, \
 def is_community_brcm_sai():
     # The Broadcom SAI package name can be determined from the installed image
     # directory (/host/image-<image-version>), if it exists.
-    command = "find /host/image-`docker images | grep syncd-brcm | grep -v latest | awk '{print $2}'` -name \"*libsaibcm*\" | grep -e \"libsaibcm$\""
+    command = "find /host/image-`docker images | grep syncd-brcm | grep -v latest | awk '{print $2}'` -name \"*libsaibcm*\" 2>/dev/null | grep -e \"libsaibcm$\""
     proc = subprocess.Popen(command, shell=True)
     proc.communicate()
 
