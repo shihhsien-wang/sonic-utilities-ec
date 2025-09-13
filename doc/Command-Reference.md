@@ -9064,35 +9064,67 @@ This command displays a list of NTP peers known to the server as well as a summa
 
 This sub-section of commands is used to add or remove the configured NTP servers.
 
-**config ntp add**
+**config ntp server add**
 
-This command is used to add a NTP server IP address to the NTP server list.  Note that more that one NTP server IP address can be added in the device.
+Add a NTP server or peer to the configuration.
 
 - Usage:
   ```
-  config ntp add <ip_address>
+  config ntp server add <server> [--type <server|peer>] [--key <key_id>] [--version <ver>]
   ```
 
 - Example:
   ```
-  admin@sonic:~$ sudo config ntp add 9.9.9.9
+  admin@sonic:~$ sudo config ntp server add 9.9.9.9 --type server --version 4
   NTP server 9.9.9.9 added to configuration
   Restarting ntp-config service...
   ```
 
-**config ntp delete**
+**config ntp server del**
 
-This command is used to delete a configured NTP server IP address.
+Delete a configured NTP server.
 
 - Usage:
   ```
-  config ntp del <ip_address>
+  config ntp server del <server>
   ```
 
 - Example:
   ```
-  admin@sonic:~$ sudo config ntp del 9.9.9.9
+  admin@sonic:~$ sudo config ntp server del 9.9.9.9
   NTP server 9.9.9.9 removed from configuration
+  Restarting ntp-config service...
+  ```
+
+**config ntp key add**
+
+Configure an authentication key used by NTP.
+
+- Usage:
+  ```
+  config ntp key add <key_id> <key> --type <md5|sha1> [--trusted yes|no]
+  ```
+
+- Example:
+  ```
+  admin@sonic:~$ sudo config ntp key add 42 theanswer --type sha1 --trusted yes
+  NTP key 42 added
+  Restarting ntp-config service...
+  ```
+
+**config ntp key del**
+
+Delete a configured NTP authentication key.
+
+- Usage:
+  ```
+  config ntp key del <key_id>
+  ```
+
+- Example:
+  ```
+  admin@sonic:~$ sudo config ntp key del 42
+  NTP key 42 removed
   Restarting ntp-config service...
   ```
 

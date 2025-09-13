@@ -6947,56 +6947,161 @@ def ntp(ctx):
     config_db.connect()
     ctx.obj = {'db': config_db}
 
-@ntp.command('add')
-@click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
-@click.pass_context
-def add_ntp_server(ctx, ntp_ip_address):
-    """ Add NTP server IP """
-    if ADHOC_VALIDATION:
-        if not clicommon.is_ipaddress(ntp_ip_address):
-            ctx.fail('Invalid IP address')
-    db = ValidatedConfigDBConnector(ctx.obj['db'])
-    ntp_servers = db.get_table("NTP_SERVER")
-    if ntp_ip_address in ntp_servers:
-        click.echo("NTP server {} is already configured".format(ntp_ip_address))
-        return
-    else:
-        try:
-            db.set_entry('NTP_SERVER', ntp_ip_address,
-                         {'resolve_as': ntp_ip_address,
-                          'association_type': 'server'})
-        except ValueError as e:
-            ctx.fail("Invalid ConfigDB. Error: {}".format(e))
-        click.echo("NTP server {} added to configuration".format(ntp_ip_address))
-        try:
-            click.echo("Restarting ntp-config service...")
-            clicommon.run_command(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
-        except SystemExit as e:
-            ctx.fail("Restart service ntp-config failed with error {}".format(e))
-
-@ntp.command('del')
-@click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
-@click.pass_context
-def del_ntp_server(ctx, ntp_ip_address):
-    """ Delete NTP server IP """
-    if ADHOC_VALIDATION:
-        if not clicommon.is_ipaddress(ntp_ip_address):
-            ctx.fail('Invalid IP address')
-    db = ValidatedConfigDBConnector(ctx.obj['db'])
-    ntp_servers = db.get_table("NTP_SERVER")
-    if ntp_ip_address in ntp_servers:
-        try:
-            db.set_entry('NTP_SERVER', '{}'.format(ntp_ip_address), None)
-        except JsonPatchConflict as e:
-            ctx.fail("Invalid ConfigDB. Error: {}".format(e))
-        click.echo("NTP server {} removed from configuration".format(ntp_ip_address))
-    else:
-        ctx.fail("NTP server {} is not configured.".format(ntp_ip_address))
+def _restart_ntp_service(ctx):
     try:
         click.echo("Restarting ntp-config service...")
         clicommon.run_command(['systemctl', 'restart', 'ntp-config'], display_cmd=False)
     except SystemExit as e:
         ctx.fail("Restart service ntp-config failed with error {}".format(e))
+
+
+def _add_ntp_server(ctx, ntp_ip_address, association_type, key_id, version):
+    if ADHOC_VALIDATION and clicommon.is_ipaddress(ntp_ip_address) is False:
+        ctx.fail('Invalid IP address')
+
+    db = ValidatedConfigDBConnector(ctx.obj['db'])
+    ntp_servers = db.get_table("NTP_SERVER")
+    if ntp_ip_address in ntp_servers:
+        click.echo("NTP server {} is already configured".format(ntp_ip_address))
+        return
+
+    entry = {
+        'resolve_as': ntp_ip_address,
+        'association_type': association_type
+    }
+    if key_id:
+        entry['key_id'] = str(key_id)
+    if version:
+        entry['version'] = str(version)
+
+    try:
+        db.set_entry('NTP_SERVER', ntp_ip_address, entry)
+    except ValueError as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+
+    click.echo("NTP server {} added to configuration".format(ntp_ip_address))
+    _restart_ntp_service(ctx)
+
+
+@ntp.group('server')
+@click.pass_context
+def ntp_server(ctx):
+    """NTP server configuration"""
+    pass
+
+
+@ntp.command('add')
+@click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
+@click.option('--type', 'association_type', type=click.Choice(['server', 'peer']), default='server')
+@click.option('--key', 'key_id')
+@click.option('--version', type=int, default=4)
+@click.pass_context
+def add_ntp_server(ctx, ntp_ip_address, association_type, key_id, version):
+    """Add NTP server"""
+    _add_ntp_server(ctx, ntp_ip_address, association_type, key_id, version)
+
+
+@ntp_server.command('add')
+@click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
+@click.option('--type', 'association_type', type=click.Choice(['server', 'peer']), default='server')
+@click.option('--key', 'key_id')
+@click.option('--version', type=int, default=4)
+@click.pass_context
+def add_ntp_server_new(ctx, ntp_ip_address, association_type, key_id, version):
+    """Add NTP server"""
+    _add_ntp_server(ctx, ntp_ip_address, association_type, key_id, version)
+
+def _del_ntp_server(ctx, ntp_ip_address):
+    if ADHOC_VALIDATION and clicommon.is_ipaddress(ntp_ip_address) is False:
+        ctx.fail('Invalid IP address')
+
+    db = ValidatedConfigDBConnector(ctx.obj['db'])
+    ntp_servers = db.get_table("NTP_SERVER")
+    if ntp_ip_address in ntp_servers:
+        try:
+            db.set_entry('NTP_SERVER', ntp_ip_address, None)
+        except JsonPatchConflict as e:
+            ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+        click.echo("NTP server {} removed from configuration".format(ntp_ip_address))
+    else:
+        ctx.fail("NTP server {} is not configured.".format(ntp_ip_address))
+
+    _restart_ntp_service(ctx)
+
+
+@ntp.command('del')
+@click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
+@click.pass_context
+def del_ntp_server(ctx, ntp_ip_address):
+    """Delete NTP server"""
+    _del_ntp_server(ctx, ntp_ip_address)
+
+
+@ntp_server.command('del')
+@click.argument('ntp_ip_address', metavar='<ntp_ip_address>', required=True)
+@click.pass_context
+def del_ntp_server_new(ctx, ntp_ip_address):
+    """Delete NTP server"""
+    _del_ntp_server(ctx, ntp_ip_address)
+
+
+@ntp.group('key')
+@click.pass_context
+def ntp_key(ctx):
+    """NTP authentication key configuration"""
+    pass
+
+
+def _add_ntp_key(ctx, key_id, key, key_type, trusted):
+    db = ValidatedConfigDBConnector(ctx.obj['db'])
+    keys = db.get_table('NTP_AUTH')
+    if key_id in keys:
+        ctx.fail(f"NTP key {key_id} already exists")
+
+    entry = {'secret': key, 'type': key_type}
+    entry['trusted'] = 'true' if trusted == 'yes' else 'false'
+
+    try:
+        db.set_entry('NTP_AUTH', key_id, entry)
+    except ValueError as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+
+    click.echo(f"NTP key {key_id} added")
+    _restart_ntp_service(ctx)
+
+
+def _del_ntp_key(ctx, key_id):
+    db = ValidatedConfigDBConnector(ctx.obj['db'])
+    keys = db.get_table('NTP_AUTH')
+    if key_id not in keys:
+        ctx.fail(f"NTP key {key_id} is not configured.")
+
+    try:
+        db.set_entry('NTP_AUTH', key_id, None)
+    except JsonPatchConflict as e:
+        ctx.fail("Invalid ConfigDB. Error: {}".format(e))
+
+    click.echo(f"NTP key {key_id} removed")
+    _restart_ntp_service(ctx)
+
+
+@ntp_key.command('add')
+@click.argument('key_id', metavar='<key_id>', required=True)
+@click.argument('key', metavar='<key>', required=True)
+@click.option('--type', 'key_type', type=click.Choice(['md5', 'sha1']), required=True)
+@click.option('--trusted', type=click.Choice(['yes', 'no']), default='no')
+@click.pass_context
+def add_ntp_key(ctx, key_id, key, key_type, trusted):
+    """Add NTP authentication key"""
+    _add_ntp_key(ctx, key_id, key, key_type, trusted)
+
+
+@ntp_key.command('del')
+@click.argument('key_id', metavar='<key_id>', required=True)
+@click.pass_context
+def del_ntp_key(ctx, key_id):
+    """Delete NTP authentication key"""
+    _del_ntp_key(ctx, key_id)
 
 #
 # 'sflow' group ('config sflow ...')
